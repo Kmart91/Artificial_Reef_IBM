@@ -10,8 +10,8 @@
       real, parameter :: prob_predation = 0.5
       real, parameter :: ratio_min = 1.9
       real, parameter :: daily_mort = 0.018
-      real, parameter :: prob_of_enc_small = 0.175
-      real, parameter :: prob_of_enc_large = 0.375
+      real, parameter :: prob_of_enc_small = 0.1225
+      real, parameter :: prob_of_enc_large = 0.2625
       real, parameter :: growth_small_flounder = 0.77 ! mm/day
       real, parameter :: growth_large_flounder = 0.73 ! mm/day
       integer :: num_of_small_flounder
@@ -32,9 +32,9 @@
       real(kind = 8) :: sigma_spot, sigma_flounder
       real(kind = 8) :: min, max
       
-      ! Naming the dynamic array that will change as spot are removed due to predation and daily mortality
+      ! Naming the array that will change as spot are removed due to predation and daily mortality
       real(kind = 8), dimension(5,125) :: final_spot
-      real(kind = 8), dimension(10,125) :: small_spot, large_spot
+      real(kind = 8), dimension(9,125) :: small_spot, large_spot
       real(kind = 8), dimension(5,10) :: small_flounder, large_flounder
 
       ! declaring the variables for the probability of an encounter and predation occuring
@@ -44,6 +44,7 @@
       
       ! for linking the flounder to the spot
       integer :: i4_uniform_ab, lower_flounder_num, upper_flounder_num
+
       ! defining the variable for the daily simulations
       days = 20
       alive = 1
@@ -71,6 +72,7 @@
       sigma_spot = 4.0
       sigma_flounder = 35.0
       seed = 123456789
+
       ! I have organized the different treatments as cases. The user will start by selecting the simulation that you want to run
       PRINT *, "Which model simulation would you like to run?" 
       PRINT *, "Type 1, 2, 3, or 4"
@@ -88,8 +90,8 @@
 !----------------------------------------------------------------------------------------------------
          CASE(1)
          treatment = "Control, no Flounder"
-         ! the truncated normal distribution for randomly assigning sizes for small spot
-                 
+
+         ! Size distributions
          ! SMALL SPOT
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'SIZES FOR SMALL SPOT '
@@ -112,7 +114,6 @@
            WRITE(*,*) "Max Size = ", max
            
          ! LARGE SPOT 
-         seed = 123456789
          write ( *, '(a)' ) ' '
          write ( *, '(a,g14.6)' ) '  Lower limit A =', lower_large_spot
          write ( *, '(a,g14.6)' ) '  Upper limit B =', upper_large_spot
@@ -140,7 +141,6 @@
          end do
 
          do i = 1, days
-         seed = 123456789     
            do j = 1, n_spot
               small_spot(1,j) = j
               large_spot(1,j) = j
@@ -198,7 +198,6 @@
          num_of_large_flounder = 0
          lower_flounder_num = 1
          upper_flounder_num = 10
-         seed = 123456789
          
          ! the truncated normal distribution for randomly assigning sizes for small spot
          ! SMALL SPOT
@@ -224,7 +223,6 @@
            WRITE(*,*) "Max Size = ", max
 
          ! LARGE SPOT
-         seed = 123456789
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'SIZES FOR LARGE SPOT '
          write ( *, '(a,g14.6)' ) '  Lower limit A =', lower_large_spot
@@ -247,7 +245,6 @@
           WRITE(*,*) "Max Size = ", max
 
          ! SMALL FlOUNDER
-         seed = 123456789
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'SIZES FOR SMALL FLOUNDER '
          write ( *, '(a,g14.6)' )'Lower limit A =', lower_small_flounder
@@ -273,12 +270,11 @@
          lower_encounter = 0.000001
          upper_encounter = 1.000000
 
-
          ! creating the alive variable
          alive = 1
          do i = 1, n_spot
-            small_spot(10,i) = alive
-            large_spot(10,i) = alive
+            small_spot(9,i) = alive
+            large_spot(9,i) = alive
          end do
 
          ! Expressing daily natural mortality of 0.018 for spot over the 20 day simulation
@@ -293,7 +289,6 @@
      &                   growth_small_flounder
               end if
            end do
-           seed = 123456789
    
            do j = 1, n_spot
               small_spot(1,j) = j
@@ -302,7 +297,7 @@
               large_spot(2,j) = size_large_spot(j)
 
            ! if dead then nothing happens after this
-           if (small_spot(10,j) == 1) then
+           if (small_spot(9,j) == 1) then
            
            ! ENCOUNTER: assigning a number between 0 and 1 for the probability of an encounter, if the number is <= 0.07 for small spot, then an encounter occurred
               small_spot(3,j) = r8_uniform_ab(lower_encounter, 
@@ -311,92 +306,86 @@
               large_spot(3,j) = r8_uniform_ab(lower_encounter, 
      &             upper_encounter, seed)
 
-           ! ENCOUNTER: assigning a number between 0 and 1 for the probability of predation if an encounter occurred for small and large spot
-              small_spot(4,j) = r8_uniform_ab(lower_encounter,
-     &             upper_encounter, seed)
-              large_spot(4,j) = r8_uniform_ab(lower_encounter, 
-     &             upper_encounter, seed)
-
            ! FLOUNDER NUMBER: assigning a rancom number between 0 and 9 to relate back to flounder
-              small_spot(5,j) = i4_uniform_ab(lower_flounder_num, 
+              small_spot(4,j) = i4_uniform_ab(lower_flounder_num, 
      &             upper_flounder_num)
-              large_spot(5,j) = i4_uniform_ab(lower_flounder_num, 
+              large_spot(4,j) = i4_uniform_ab(lower_flounder_num, 
      &             upper_flounder_num)
              
            ! MERGE WITH FLOUNDER
-              if (small_spot(5,j) == 1) then
-                 small_spot(6,j) = small_flounder(2,1)
-              else if (small_spot(5,j) == 2) then
-                 small_spot(6,j) = small_flounder(2,2)
-              else if (small_spot(5,j) == 3) then
-                 small_spot(6,j) = small_flounder(2,3)
-              else if (small_spot(5,j) == 4) then
-                 small_spot(6,j) = small_flounder(2,4)
-              else if (small_spot(5,j) == 5) then
-                 small_spot(6,j) = small_flounder(2,5)
-              else if (small_spot(5,j) == 6) then
-                 small_spot(6,j) = small_flounder(2,6)
-              else if (small_spot(5,j) == 7) then
-                 small_spot(6,j) = small_flounder(2,7)
-              else if (small_spot(5,j) == 8) then
-                 small_spot(6,j) = small_flounder(2,8)
-              else if (small_spot(5,j) == 9) then
-                 small_spot(6,j) = small_flounder(2,9)
-              else if (small_spot(5,j) == 10) then
-                 small_spot(6,j) = small_flounder(2,10)
+              if (small_spot(4,j) == 1) then
+                 small_spot(5,j) = small_flounder(2,1)
+              else if (small_spot(4,j) == 2) then
+                 small_spot(5,j) = small_flounder(2,2)
+              else if (small_spot(4,j) == 3) then
+                 small_spot(5,j) = small_flounder(2,3)
+              else if (small_spot(4,j) == 4) then
+                 small_spot(5,j) = small_flounder(2,4)
+              else if (small_spot(4,j) == 5) then
+                 small_spot(5,j) = small_flounder(2,5)
+              else if (small_spot(4,j) == 6) then
+                 small_spot(5,j) = small_flounder(2,6)
+              else if (small_spot(4,j) == 7) then
+                 small_spot(5,j) = small_flounder(2,7)
+              else if (small_spot(4,j) == 8) then
+                 small_spot(5,j) = small_flounder(2,8)
+              else if (small_spot(4,j) == 9) then
+                 small_spot(5,j) = small_flounder(2,9)
+              else if (small_spot(4,j) == 10) then
+                 small_spot(5,j) = small_flounder(2,10)
               end if
 
-              if (large_spot(5,j) == 1) then
-                 large_spot(6,j) = small_flounder(2,1)
-              else if (large_spot(5,j) == 2) then
-                 large_spot(6,j) = small_flounder(2,2)
-              else if (large_spot(5,j) == 3) then
-                 large_spot(6,j) = small_flounder(2,3)
-              else if (large_spot(5,j) == 4) then
-                 large_spot(6,j) = small_flounder(2,4)
-              else if (large_spot(5,j) == 5) then
-                 large_spot(6,j) = small_flounder(2,5)
-              else if (large_spot(5,j) == 6) then
-                 large_spot(6,j) = small_flounder(2,6)
-              else if (large_spot(5,j) == 7) then
-                 large_spot(6,j) = small_flounder(2,7)
-              else if (large_spot(5,j) == 8) then
-                 large_spot(6,j) = small_flounder(2,8)
-              else if (large_spot(5,j) == 9) then
-                 large_spot(6,j) = small_flounder(2,9)
-              else if (large_spot(5,j) == 10) then
-                 large_spot(6,j) = small_flounder(2,10)
+              if (large_spot(4,j) == 1) then
+                 large_spot(5,j) = small_flounder(2,1)
+              else if (large_spot(4,j) == 2) then
+                 large_spot(5,j) = small_flounder(2,2)
+              else if (large_spot(4,j) == 3) then
+                 large_spot(5,j) = small_flounder(2,3)
+              else if (large_spot(4,j) == 4) then
+                 large_spot(5,j) = small_flounder(2,4)
+              else if (large_spot(4,j) == 5) then
+                 large_spot(5,j) = small_flounder(2,5)
+              else if (large_spot(4,j) == 6) then
+                 large_spot(5,j) = small_flounder(2,6)
+              else if (large_spot(4,j) == 7) then
+                 large_spot(5,j) = small_flounder(2,7)
+              else if (large_spot(4,j) == 8) then
+                 large_spot(5,j) = small_flounder(2,8)
+              else if (large_spot(4,j) == 9) then
+                 large_spot(5,j) = small_flounder(2,9)
+              else if (large_spot(4,j) == 10) then
+                 large_spot(5,j) = small_flounder(2,10)
               end if
 
            ! PROFITABILITY RATIO
-              small_spot(7,j) = small_spot(6,j) /
+              small_spot(6,j) = small_spot(5,j) /
      &             small_spot(2,j)
-              large_spot(7,j) = large_spot(6,j) /
+              large_spot(6,j) = large_spot(5,j) /
      &             large_spot(2,j)
 
            ! PREDATION
-              small_spot(8,j) = r8_uniform_ab(lower_encounter,
+              small_spot(7,j) = r8_uniform_ab(lower_encounter,
      &             upper_encounter, seed)
-              large_spot(8,j) = r8_uniform_ab(lower_encounter, 
+              large_spot(7,j) = r8_uniform_ab(lower_encounter, 
      &             upper_encounter, seed)
 
-           ! NATURAL MORTALITY
-              small_spot(9,j) = r8_uniform_ab(lower_daily_mort, 
+           ! NATURAL MORTALITY - this shouldn't be random. it's a set value
+              small_spot(8,j) = r8_uniform_ab(lower_daily_mort, 
      &             upper_daily_mort, seed)
-              large_spot(9,j) = r8_uniform_ab(lower_daily_mort, 
+              large_spot(8,j) = r8_uniform_ab(lower_daily_mort, 
      &             upper_daily_mort, seed)
           
            ! ALIVE = 0 STATEMENTS
-              if (small_spot(9,j) <= daily_mort .or. small_spot(4,j) 
-     &          <= prob_of_enc_large .and. small_spot(7,j) >= ratio_min 
-     &          .and. small_spot(8,j) > prob_predation) then
-                small_spot(10,j) = 0
+              if (small_spot(8,j) <= daily_mort .or. small_spot(3,j) 
+     &          <= prob_of_enc_small .and. small_spot(6,j) >= ratio_min 
+     &          .and. small_spot(7,j) > prob_predation) then
+                small_spot(9,j) = 0
               end if
 
-              if (large_spot(9,j) <= daily_mort .or. large_spot(4,j) 
-     &             <= prob_of_enc_large.and.large_spot(7,j) >= ratio_min 
-     &             .and. large_spot(8,j) > prob_predation) then
-                large_spot(10,j) = 0
+              if (large_spot(8,j) <= daily_mort .or. large_spot(3,j) 
+     &             <= prob_of_enc_large.and.large_spot(6,j) >= ratio_min 
+     &             .and. large_spot(7,j) > prob_predation) then
+                large_spot(9,j) = 0
               end if
              end if
            end do 
@@ -411,12 +400,12 @@
          OPEN(unit = 1, access = "sequential", action = "write", 
      &        status = "replace", 
      &        file = "Rice_model_case_2_small_spot.csv")
-              WRITE(1,'(10(g14.7,:,","))') small_spot
+              WRITE(1,'(9(g14.7,:,","))') small_spot
          CLOSE(1)         
          OPEN(unit = 1, access = "sequential", action = "write", 
      &        status = "replace", 
      &        file = "Rice_model_case_2_large_spot.csv")
-              WRITE(1,'(10(g14.7,:,","))') large_spot
+              WRITE(1,'(9(g14.7,:,","))') large_spot
          CLOSE(1)
          end do
          
@@ -426,10 +415,10 @@
 
                
          ! Writing the final array size and checking to make sure that it matches the final value for n_spot
+         WRITE(*,*) "The final number of small spot in case 2 is", 
+     &        count(small_spot(9,:) .eq. 1)
          WRITE(*,*) "The final number of large spot in case 2 is", 
-     &        count(small_spot(10,:) .eq. 1)
-         WRITE(*,*) "The final number of large spot in case 2 is", 
-     &        count(large_spot(10,:) .eq. 1)
+     &        count(large_spot(9,:) .eq. 1)
 
         
 
@@ -481,7 +470,6 @@
           WRITE(*,*) "Max Size = ", max
 
          ! LARGE FlOUNDER
-         seed = 123456789
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'SIZES FOR LARGE FLOUNDER '
          write ( *, '(a,g14.6)' )'Lower limit A =', lower_large_flounder
@@ -507,15 +495,14 @@
          lower_encounter = 0.000001
          upper_encounter = 1.000000
 
-
          ! creating the alive variable
          alive = 1
          do i = 1, n_spot
-            small_spot(10,i) = alive
-            large_spot(10,i) = alive
+            small_spot(9,i) = alive
+            large_spot(9,i) = alive
          end do
 
-         ! Expressing daily natural mortality of 0.018 for spot over the 20 day simulation
+         ! 20 day simulation
          do i = 1, days
            do k = 1, num_of_large_flounder
               large_flounder(1,k) = k
@@ -527,7 +514,6 @@
      &                   growth_large_flounder
               end if
            end do
-           seed = 123456789
    
            do j = 1, n_spot
               small_spot(1,j) = j
@@ -536,7 +522,7 @@
               large_spot(2,j) = size_large_spot(j)
 
            ! if dead then nothing happens after this
-           if (small_spot(10,j) == 1) then
+           if (small_spot(9,j) == 1) then
            
            ! ENCOUNTER: assigning a number between 0 and 1 for the probability of an encounter, if the number is <= 0.07 for small spot, then an encounter occurred
               small_spot(3,j) = r8_uniform_ab(lower_encounter, 
@@ -545,71 +531,66 @@
               large_spot(3,j) = r8_uniform_ab(lower_encounter, 
      &             upper_encounter, seed)
 
-           ! ENCOUNTER: assigning a number between 0 and 1 for the probability of predation if an encounter occurred for small and large spot
-              small_spot(4,j) = r8_uniform_ab(lower_encounter,
-     &             upper_encounter, seed)
-              large_spot(4,j) = r8_uniform_ab(lower_encounter, 
-     &             upper_encounter, seed)
-
            ! FLOUNDER NUMBER: assigning a rancom number between 0 and 9 to relate back to flounder
-              small_spot(5,j) = i4_uniform_ab(lower_flounder_num, 
+              small_spot(4,j) = i4_uniform_ab(lower_flounder_num, 
      &             upper_flounder_num)
-              large_spot(5,j) = i4_uniform_ab(lower_flounder_num, 
+              large_spot(4,j) = i4_uniform_ab(lower_flounder_num, 
      &             upper_flounder_num)
              
            ! MERGE WITH FLOUNDER
-              if (small_spot(5,j) == 1) then
-                 small_spot(6,j) = large_flounder(2,1)
-              else if (small_spot(5,j) == 2) then
-                 small_spot(6,j) = large_flounder(2,2)
-              else if (small_spot(5,j) == 3) then
-                 small_spot(6,j) = large_flounder(2,3)
-              else if (small_spot(5,j) == 4) then
-                 small_spot(6,j) = large_flounder(2,4)
+              if (small_spot(4,j) == 1) then
+                 small_spot(5,j) = large_flounder(2,1)
+              else if (small_spot(4,j) == 2) then
+                 small_spot(5,j) = large_flounder(2,2)
+              else if (small_spot(4,j) == 3) then
+                 small_spot(5,j) = large_flounder(2,3)
+              else if (small_spot(4,j) == 4) then
+                 small_spot(5,j) = large_flounder(2,4)
               end if
 
-              if (large_spot(5,j) == 1) then
-                 large_spot(6,j) = large_flounder(2,1)
-              else if (large_spot(5,j) == 2) then
-                 large_spot(6,j) = large_flounder(2,2)
-              else if (large_spot(5,j) == 3) then
-                 large_spot(6,j) = large_flounder(2,3)
-              else if (large_spot(5,j) == 4) then
-                 large_spot(6,j) = large_flounder(2,4)
+              if (large_spot(4,j) == 1) then
+                 large_spot(5,j) = large_flounder(2,1)
+              else if (large_spot(4,j) == 2) then
+                 large_spot(5,j) = large_flounder(2,2)
+              else if (large_spot(4,j) == 3) then
+                 large_spot(5,j) = large_flounder(2,3)
+              else if (large_spot(4,j) == 4) then
+                 large_spot(5,j) = large_flounder(2,4)
               end if
 
            ! PROFITABILITY RATIO
-              small_spot(7,j) = small_spot(6,j) /
+              small_spot(6,j) = small_spot(5,j) /
      &             small_spot(2,j)
-              large_spot(7,j) = large_spot(6,j) /
+              large_spot(6,j) = large_spot(5,j) /
      &             large_spot(2,j)
 
            ! PREDATION
-              small_spot(8,j) = r8_uniform_ab(lower_encounter,
+              small_spot(7,j) = r8_uniform_ab(lower_encounter,
      &             upper_encounter, seed)
-              large_spot(8,j) = r8_uniform_ab(lower_encounter, 
+              large_spot(7,j) = r8_uniform_ab(lower_encounter, 
      &             upper_encounter, seed)
 
-           ! NATURAL MORTALITY
-              small_spot(9,j) = r8_uniform_ab(lower_daily_mort, 
+           ! NATURAL MORTALITY - this shouldn't be random. it's a set value
+              small_spot(8,j) = r8_uniform_ab(lower_daily_mort, 
      &             upper_daily_mort, seed)
-              large_spot(9,j) = r8_uniform_ab(lower_daily_mort, 
+              large_spot(8,j) = r8_uniform_ab(lower_daily_mort, 
      &             upper_daily_mort, seed)
           
            ! ALIVE = 0 STATEMENTS
-              if (small_spot(9,j) <= daily_mort .or. small_spot(4,j) 
-     &          <= prob_of_enc_large .and. small_spot(7,j) >= ratio_min 
-     &          .and. small_spot(8,j) > prob_predation) then
-                small_spot(10,j) = 0
+              if (small_spot(8,j) <= daily_mort .or. small_spot(3,j) 
+     &          <= prob_of_enc_small .and. small_spot(6,j) >= ratio_min 
+     &          .and. small_spot(7,j) > prob_predation) then
+                small_spot(9,j) = 0
               end if
 
-              if (large_spot(9,j) <= daily_mort .or. large_spot(4,j) 
-     &             <= prob_of_enc_large.and.large_spot(7,j) >= ratio_min 
-     &             .and. large_spot(8,j) > prob_predation) then
-                large_spot(10,j) = 0
+              if (large_spot(8,j) <= daily_mort .or. large_spot(3,j) 
+     &             <= prob_of_enc_large.and.large_spot(6,j) >= ratio_min 
+     &             .and. large_spot(7,j) > prob_predation) then
+                large_spot(9,j) = 0
               end if
              end if
            end do 
+
             WRITE(*,*) ' '
             WRITE(*,*) "The min values are", minval(small_spot, dim = 2)
             WRITE(*,*) "The max values are", maxval(small_spot, dim = 2)
@@ -621,12 +602,12 @@
          OPEN(unit = 1, access = "sequential", action = "write", 
      &        status = "replace", 
      &        file = "Rice_model_case_3_small_spot.csv")
-              WRITE(1,'(10(g14.7,:,","))') small_spot
+              WRITE(1,'(9(g14.7,:,","))') small_spot
          CLOSE(1)         
          OPEN(unit = 1, access = "sequential", action = "write", 
      &        status = "replace", 
      &        file = "Rice_model_case_3_large_spot.csv")
-              WRITE(1,'(10(g14.7,:,","))') large_spot
+              WRITE(1,'(9(g14.7,:,","))') large_spot
          CLOSE(1)
          end do
          
@@ -636,10 +617,10 @@
 
                
          ! Writing the final array size and checking to make sure that it matches the final value for n_spot
+         WRITE(*,*) "The final number of small spot in case 3 is", 
+     &        count(small_spot(9,:) .eq. 1)
          WRITE(*,*) "The final number of large spot in case 3 is", 
-     &        count(small_spot(10,:) .eq. 1)
-         WRITE(*,*) "The final number of large spot in case 3 is", 
-     &        count(large_spot(10,:) .eq. 1)
+     &        count(large_spot(9,:) .eq. 1)
 
          
 
@@ -690,7 +671,6 @@
           WRITE(*,*) "Max Size = ", max
 
          ! SMALL FlOUNDER
-         seed = 123456789
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'SIZES FOR SMALL FLOUNDER '
          write ( *, '(a,g14.6)' )'Lower limit A =', lower_small_flounder
@@ -713,7 +693,6 @@
            WRITE(*,*) "Max Size = ", max
 
          ! LARGE FlOUNDER
-         seed = 123456789
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'SIZES FOR LARGE FLOUNDER '
          write ( *, '(a,g14.6)' )'Lower limit A =', lower_large_flounder
@@ -739,17 +718,15 @@
          lower_encounter = 0.000001
          upper_encounter = 1.000000
 
-
          ! creating the alive variable
          alive = 1
          do i = 1, n_spot
-            small_spot(10,i) = alive
-            large_spot(10,i) = alive
+            small_spot(9,i) = alive
+            large_spot(9,i) = alive
          end do
 
-         ! LOOP OVER DAYS
+         ! Expressing daily natural mortality of 0.018 for spot over the 20 day simulation
          do i = 1, days
-
            ! DAILY GROWTH FOR SMALL AND LARGE FLOUNDER
            do k = 1, num_of_small_flounder
               small_flounder(1,k) = k
@@ -770,10 +747,7 @@
               large_flounder(2,k) = large_flounder(2,k) + 
      &                   growth_large_flounder
               end if
-           end do
-           
-           seed = 123456789
-   
+           end do   
            do j = 1, n_spot
               small_spot(1,j) = j
               small_spot(2,j) = size_small_spot(j)
@@ -781,7 +755,7 @@
               large_spot(2,j) = size_large_spot(j)
 
            ! if dead then nothing happens after this
-           if (small_spot(10,j) == 1) then
+           if (small_spot(9,j) == 1) then
            
            ! ENCOUNTER: assigning a number between 0 and 1 for the probability of an encounter, if the number is <= 0.07 for small spot, then an encounter occurred
               small_spot(3,j) = r8_uniform_ab(lower_encounter, 
@@ -790,80 +764,74 @@
               large_spot(3,j) = r8_uniform_ab(lower_encounter, 
      &             upper_encounter, seed)
 
-           ! ENCOUNTER: assigning a number between 0 and 1 for the probability of predation if an encounter occurred for small and large spot
-              small_spot(4,j) = r8_uniform_ab(lower_encounter,
-     &             upper_encounter, seed)
-              large_spot(4,j) = r8_uniform_ab(lower_encounter, 
-     &             upper_encounter, seed)
-
            ! FLOUNDER NUMBER: assigning a rancom number between 0 and 9 to relate back to flounder
-              small_spot(5,j) = i4_uniform_ab(lower_flounder_num, 
+              small_spot(4,j) = i4_uniform_ab(lower_flounder_num, 
      &             upper_flounder_num)
-              large_spot(5,j) = i4_uniform_ab(lower_flounder_num, 
+              large_spot(4,j) = i4_uniform_ab(lower_flounder_num, 
      &             upper_flounder_num)
              
            ! MERGE WITH FLOUNDER
-              if (small_spot(5,j) == 1) then
-                 small_spot(6,j) = small_flounder(2,1)
-              else if (small_spot(5,j) == 2) then
-                 small_spot(6,j) = small_flounder(2,2)
-              else if (small_spot(5,j) == 3) then
-                 small_spot(6,j) = small_flounder(2,3)
-              else if (small_spot(5,j) == 4) then
-                 small_spot(6,j) = small_flounder(2,4)
-              else if (small_spot(5,j) == 5) then
-                 small_spot(6,j) = small_flounder(2,5)
-              else if (small_spot(5,j) == 6) then
-                 small_spot(6,j) = large_flounder(2,1)
-              else if (small_spot(5,j) == 7) then
-                 small_spot(6,j) = large_flounder(2,2)
+              if (small_spot(4,j) == 1) then
+                 small_spot(5,j) = small_flounder(2,1)
+              else if (small_spot(4,j) == 2) then
+                 small_spot(5,j) = small_flounder(2,2)
+              else if (small_spot(4,j) == 3) then
+                 small_spot(5,j) = small_flounder(2,3)
+              else if (small_spot(4,j) == 4) then
+                 small_spot(5,j) = small_flounder(2,4)
+              else if (small_spot(4,j) == 5) then
+                 small_spot(5,j) = small_flounder(2,5)
+              else if (small_spot(4,j) == 6) then
+                 small_spot(5,j) = large_flounder(2,1)
+              else if (small_spot(4,j) == 7) then
+                 small_spot(5,j) = large_flounder(2,2)
               end if
 
-              if (large_spot(5,j) == 1) then
-                 large_spot(6,j) = small_flounder(2,1)
-              else if (large_spot(5,j) == 2) then
-                 large_spot(6,j) = small_flounder(2,2)
-              else if (large_spot(5,j) == 3) then
-                 large_spot(6,j) = small_flounder(2,3)
-              else if (large_spot(5,j) == 4) then
-                 large_spot(6,j) = small_flounder(2,4)
-              else if (large_spot(5,j) == 5) then
-                 large_spot(6,j) = small_flounder(2,5)
-              else if (large_spot(5,j) == 6) then
-                 large_spot(6,j) = large_flounder(2,1)
-              else if (large_spot(5,j) == 7) then
-                 large_spot(6,j) = large_flounder(2,2)
+              if (large_spot(4,j) == 1) then
+                 large_spot(5,j) = small_flounder(2,1)
+              else if (large_spot(4,j) == 2) then
+                 large_spot(5,j) = small_flounder(2,2)
+              else if (large_spot(4,j) == 3) then
+                 large_spot(5,j) = small_flounder(2,3)
+              else if (large_spot(4,j) == 4) then
+                 large_spot(5,j) = small_flounder(2,4)
+              else if (large_spot(4,j) == 5) then
+                 large_spot(5,j) = small_flounder(2,5)
+              else if (large_spot(4,j) == 6) then
+                 large_spot(5,j) = large_flounder(2,1)
+              else if (large_spot(4,j) == 7) then
+                 large_spot(5,j) = large_flounder(2,2)
               end if
 
            ! PROFITABILITY RATIO
-              small_spot(7,j) = small_spot(6,j) /
+              small_spot(6,j) = small_spot(5,j) /
      &             small_spot(2,j)
-              large_spot(7,j) = large_spot(6,j) /
+              large_spot(6,j) = large_spot(5,j) /
      &             large_spot(2,j)
 
            ! PREDATION
-              small_spot(8,j) = r8_uniform_ab(lower_encounter,
+              small_spot(7,j) = r8_uniform_ab(lower_encounter,
      &             upper_encounter, seed)
-              large_spot(8,j) = r8_uniform_ab(lower_encounter, 
+              large_spot(7,j) = r8_uniform_ab(lower_encounter, 
      &             upper_encounter, seed)
 
-           ! NATURAL MORTALITY
-              small_spot(9,j) = r8_uniform_ab(lower_daily_mort, 
+           ! NATURAL MORTALITY - this shouldn't be random. it's a set value
+              small_spot(8,j) = r8_uniform_ab(lower_daily_mort, 
      &             upper_daily_mort, seed)
-              large_spot(9,j) = r8_uniform_ab(lower_daily_mort, 
+              large_spot(8,j) = r8_uniform_ab(lower_daily_mort, 
      &             upper_daily_mort, seed)
           
            ! ALIVE = 0 STATEMENTS
-              if (small_spot(9,j) <= daily_mort .or. small_spot(4,j) 
-     &          <= prob_of_enc_large .and. small_spot(7,j) >= ratio_min 
-     &          .and. small_spot(8,j) > prob_predation) then
-                small_spot(10,j) = 0
+              if (small_spot(8,j) <= daily_mort .or. small_spot(3,j) 
+     &          <= prob_of_enc_small .and. small_spot(6,j) >= ratio_min 
+     &          .and. small_spot(7,j) > prob_predation) then
+                small_spot(9,j) = 0
               end if
 
-              if (large_spot(9,j) <= daily_mort .or. large_spot(4,j) 
-     &             <= prob_of_enc_large.and.large_spot(7,j) >= ratio_min 
-     &             .and. large_spot(8,j) > prob_predation) then
-                large_spot(10,j) = 0
+              if (large_spot(8,j) <= daily_mort .or. large_spot(3,j) 
+     &             <= prob_of_enc_large.and.large_spot(6,j) >= ratio_min 
+     &             .and. large_spot(7,j) > prob_predation) then
+                large_spot(9,j) = 0
               end if
              end if
            end do 
@@ -878,12 +846,12 @@
          OPEN(unit = 1, access = "sequential", action = "write", 
      &        status = "replace", 
      &        file = "Rice_model_case_4_small_spot.csv")
-              WRITE(1,'(10(g14.7,:,","))') small_spot
+              WRITE(1,'(9(g14.7,:,","))') small_spot
          CLOSE(1)         
          OPEN(unit = 1, access = "sequential", action = "write", 
      &        status = "replace", 
      &        file = "Rice_model_case_4_large_spot.csv")
-              WRITE(1,'(10(g14.7,:,","))') large_spot
+              WRITE(1,'(9(g14.7,:,","))') large_spot
          CLOSE(1)
          end do
          
@@ -893,10 +861,10 @@
 
                
          ! Writing the final array size and checking to make sure that it matches the final value for n_spot
+         WRITE(*,*) "The final number of small spot in case 4 is", 
+     &        count(small_spot(9,:) .eq. 1)
          WRITE(*,*) "The final number of large spot in case 4 is", 
-     &        count(small_spot(10,:) .eq. 1)
-         WRITE(*,*) "The final number of large spot in case 4 is", 
-     &        count(large_spot(10,:) .eq. 1)
+     &        count(large_spot(9,:) .eq. 1)
       END SELECT
       WRITE (*,*) "Treatment = ",treatment
          

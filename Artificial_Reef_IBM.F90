@@ -1002,7 +1002,7 @@ USE allvar
 !       if (ifish.eq.23.and.iyear.eq.1.and.iday.ge.300) then
 !         WRITE(41,1060)iyear,iday,ihour,inight,ifish,xsp,k,xycell(ifish),xxcell(ifish),xcolnear(ifish),xrownear(ifish),dist,&
 !                       & xdistnear(ifish),oldist
-!         1060   FORMAT(1x,11(i6,1x),3(e12.2,1x))
+!         1060   FORMAT(1x,11(i6,1x),3(e12.2,1x)) !replicate once, 11 values, i6 - create a column where it'll take integers of 6 places, then create 3 that are out to 12 decimals. so basically put you are writing out the file and formatting it with the 1060 format from above
 !       end if
 
 
