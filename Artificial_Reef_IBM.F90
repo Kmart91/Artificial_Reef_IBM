@@ -22,9 +22,10 @@ MODULE allvar
   REAL*8 grow                         ! g ww pred/g wwpred/hour
   INTEGER ifish, inight, ihour        ! id 1=night and 2=day  hours from 1 to 24
   integer iday, jday, iyear           ! model day  julian day  and year counter
-  INTEGER nrigs                       !  number of cells that have rigs
+  INTEGER nrigs, npyr                 !  number of cells that have rigs and pyramids
   REAL*8  cellsize                    ! side of cells in meters
-  INTEGER zhab(ncol,nrow)              ! 0 = rig cell.  1 = benthic cell - used to multiply by prey densities
+  INTEGER zhab(ncol,nrow)              ! 0 = rig cell.  1 = benthic cell. 2 = pyramid cell - used to multiply by prey densities
+  integer pyrcol(ncol*nrow),pyrrow(ncol*nrow)  ! column number of ith pyramid and row number of ith pyramid
   integer zrigcol(ncol*nrow),zrigrow(ncol*nrow)  ! column number of ith rig and row number of ith rig
   integer colnear(ncol,nrow), rownear(ncol,nrow) ! column number of nearest rig cell and row number
   REAL*8 distnear(ncol,nrow)   ! distance in meters to center of nearest rig cell
@@ -525,11 +526,11 @@ READ (UNIT = 31, FMT = 1055) fa(1),fa(2),fa(3),fa(4),fb(1),fb(2),fb(3),fb(4),fg(
 1055 FORMAT(1X,4(F5.3,1X),4(F6.3,1X),4(F5.3,1X),4(F5.3,1X),4(F4.2,1X),4(F6.3,1X))
 
 !Check the correctness of the bioenergetics data file read in
-!do i=1,nspecies-1
-!PRINT*,i,ga(i),gb(i),gtmax(i),gtopt(i),gtheta1(i),ra(i),rb(i),rtmax(i),rtopt(i),rtheta2(i),act(i),fa(i),fb(i),fg(i),ua(i),ub(i),&
-!& ug(i)
-!END do
-!pause
+do i=1,nspecies-1
+PRINT*,i,ga(i),gb(i),gtmax(i),gtopt(i),gtheta1(i),ra(i),rb(i),rtmax(i),rtopt(i),rtheta2(i),act(i),fa(i),fb(i),fg(i),ua(i),ub(i),&
+& ug(i)
+END do 
+pause
 
 ! Use either read from file (above) or read from screen here
  PRINT *,'enter total pop of red snapper on each rig in numbers'  ! number of age-1 individual snapper in population
@@ -552,7 +553,7 @@ READ (UNIT = 31, FMT = 1055) fa(1),fa(2),fa(3),fa(4),fb(1),fb(2),fb(3),fb(4),fg(
  endif
 !
 !!*NEW - entered setup information to include a 4th IBM species ... bluefish
- PRINT *,'enter 0 for no bluefish and 1 for bluefish'  ! 1 means the fourth species is bluefish
+  PRINT *,'enter 0 for no bluefish and 1 for bluefish'  ! 1 means the fourth species is bluefish
   READ *,ibluefish
 !
  IF(ibluefish.eq.1)then
@@ -589,13 +590,13 @@ IF(ijack.eq.1)call initfish(5)
 cumeat=0.0       ! for first call to preyupdate
 call preyupdate  ! update prey to get started
 
-do 100 iyear=1,50   ! loop over years
+do 100 iyear=1,2   ! loop over years
 
 !if (MOD(iyear,10).eq.0.and.newrigs.gt.0)call addrig
 if (iyear.eq.5.and.remrigs.gt.0)call subrig   ! subtract remrigs at year 5
 if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
 
-  do 200 iday=1,365    ! loop over days in a year
+  do 200 iday=1,2    ! loop over days in a year
      cumdays = (iyear-1)*365 + iday   ! days from 1 to end of run for plotting 1,2,3 ......,678,....,1254, etc.
      jday=iday+181        ! iday=1 is jday=182 which is July 1
      IF(jday.gt.365)jday=jday-365  ! wrap around Dec 31 for jday
@@ -1400,7 +1401,6 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
     end do                 ! could do this with go to statements that skip rowk and colk and incrementing iii KAR
 
 
-
     do i=1,iii-1           ! put random numbers in an array whose length is the number of cells in neighborhood (i.e., iii-1 cells)
          xx(i)=ran1(idum)
     end do
@@ -1476,12 +1476,12 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
      IF(xsp.eq.5)t1=1.5   ! 1.5 jacks move fast
 
      IF(ran1(idum).lt.0.5)then !  randomness on nightdist
-        tt2=-1.0   ! move
+        tt2=-1.0   ! move left
      else
         tt2=1.0     ! move right
      endif
     tt3 = nightdist(ia) + tt2*nightdist(ia)*0.3*ran1(idum)   ! +- 30% of inputted distance moved in an hour during the night (meters)
-    IF(tt3.le.0.0)tt3=0.0   ! huh?  this seems to say you cannot move left KAR - but ran1 is less than 1 so cannot get a negative
+    IF(tt3.le.0.0)tt3=0.0   ! this is distance, nothing is never really negative. this is solved based on the if else statement from the previous 4 lines. can't have neg speed to they just stand still
     xdist = t1*tt3*COS(theta)   ! distance in meters moved in the x direction this hour
     ydist = t1*tt3*SIN(theta)
 
@@ -1620,7 +1620,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, eqn8090,m3a,m3b,m3,m4,z
    xsp=xspecies(ifish)
 
    m1=nmorth
-   ! atlantic croaker and bluefish experience increased natural mortality
+   ! atlantic croaker and pinfish experience increased natural mortality
    if (xsp.eq.2) then  !Nelson 2002 listed a yearly mortality rate of 0.78/yr
      m1=nmorth*6.0
    end if
@@ -1675,7 +1675,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, eqn8090,m3a,m3b,m3,m4,z
 
    if(m3.lt.0)m3=0.0  ! constrain the function to 0 ... otherwise you get increased survival
 
-   if(xrig(ifish).eq.0.and.xage(ifish).ge.0)then    !on rig status to toggle refuge effect, species and age specific
+   if(xrig(ifish).eq.0.and.xage(ifish).ge.0)then    !on rig status to toggle refuge effect, species and age specific. Can change this to reflect Gallaway 2009 - might be age structure to fmort - KM
        m4=fmorth  !off rig fmorth applied
    else
 !       m4=fmorth ! no refuge - fmorth applied on rig
@@ -1937,7 +1937,7 @@ do i=1,nspecies
   endif
 
 ! total production is yield in biomass plus loss due to natural mort and gains or losses due to groiwth in weight (g ww)
-  totp(i)=yield(i)+naturalp(i)+growthp(i)    ! ignored naturalpnum - but I think it is correct to ignore changes in numbers                                          ! should be growth plus mortality plsu remaining biomass  KAR
+  totp(i)=yield(i)+naturalp(i)+growthp(i)    ! ignored naturalpnum - but I think it is correct to ignore changes in numbers ! should be growth plus mortality plsu remaining biomass  KAR
 enddo                                        ! because the naturalp terms includes worth, which relfects mortality
 
 
@@ -2048,24 +2048,23 @@ USE allvar
 IMPLICIT NONE
 
 !DEL - commented out print and read statements.  Data is read from file 'input.dat'
-PRINT *,'Method: 1=physically insert, 2= center cluster, 3= Uniform, 4=random'
+PRINT *,'Method: 1 = MU-775: pyramid field and randomly places rigs, 2 = RGV: random clusters of pyramids and randomly places rigs, 3 = POC: Places 2 large pyramid fields and randomly places rigs'
 READ *, meth
 PRINT *, 'Number of rigs'
 READ *, nrigs
+PRINT *, 'Number of pyramids'
+READ *, npyr
 
+IF (meth.eq.1)CALL pyrfieldandrandrig
 
-IF (meth.eq.1)CALL pinsert
+IF (meth.eq.2)CALL pyrclustandrandrig
 
-IF (meth.eq.2)CALL centclust
-
-IF (meth.eq.3)CALL uniform
-
-IF (meth.eq.4)CALL randrig
+IF (meth.eq.3)CALL POCpyrclustandrandrig
 
 DO i = 1,ncol
    DO j = 1,nrow
 
-    IF(zhab(i,j).eq.0) THEN
+    IF(zhab(i,j).ne.1) THEN
     write(7,1000)i,j,zhab(i,j)
     1000 FORMAT(1x,3(i3,1x))
     END IF
@@ -2075,8 +2074,220 @@ END DO
 
 END SUBROUTINE setrig
 
+! This subroutine creates an evenly spaces pyramid field on the left side of the grid and then randomly places several rigs on the right side of the grid
+SUBROUTINE pyrfieldandrandrig
+USE allvar
+IMPLICIT NONE
+INTEGER :: upperpyrcol, lowerrigcol, upperrigcol
+INTEGER :: pyrcnt, rigcnt
+REAL*8 ran1
+
+pyrcnt = 1
+rigcnt = 1
+upperpyrcol = ncol/3
+lowerrigcol = ncol/5
+upperrigcol = ncol
+bffr = 5
+intvl = 2
+
+! Setting up the pyramid field
+DO i = bffr,nrow+bffr
+    DO j = bffr,upperpyrcol-bffr
+
+    if (MOD(i-bffr,intvl).eq.0.and.MOD(j-bffr,intvl).eq.0) then
+
+        pyrcol(pyrcnt)=j
+        pyrrow(pyrcnt)=i
+        zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
+
+        if (pyrcnt.eq.npyr)GO TO 678
+
+        pyrcnt = pyrcnt+1
+
+    end if
+    END DO
+END DO
+
+678 continue
+
+!Randomly places rigs on the right side of the grid
+    DO i =1,nrigs
+
+5678    zrigcol=ran1(idum)*ncol   ! new rig col
+        zrigrow=ran1(idum)*nrow   ! new rig row
+        IF (zrigcol(i).lt.upperpyrcol) GO TO 5678
+        if (zhab(zrigcol(i),zrigrow(i)).ne.1)then
+          GOTO 5678  ! check and see if the cell is already a rig
+        else
+          zhab(zrigcol,zrigrow)=0
+        endif
+        rigcnt = rigcnt + 1
+    END DO
+
+END SUBROUTINE pyrfieldandrandrig
+
+! This subroutine creates several random clusters of pyramids and randomly places rigs 
+SUBROUTINE POCpyrclustandrandrig
+USE allvar
+IMPLICIT NONE
+INTEGER :: l, m
+INTEGER :: pyrcnt, rigcnt, upperpyrcol  !counter and the upper column limit for pyramid placement
+INTEGER :: pyrclustcol, pyrclustrow  !column and row of clusters of pyramids
+INTEGER :: clustbffr, clustintvl, pyrbffr, pyrintvl !buffer and interval for the clusters and pyramids
+INTEGER :: npyrclust, npyrinclust, numclust1, numclust2
+REAL*8 ran1
+
+pyrcnt = 1
+numclust1 = 6
+numclust2 = 3
+npyrclust = 1
+clustbffr = 1
+clustintvl = 1
+pyrbffr = 2
+pyrintvl = 1
+upperpyrcol = ncol/3
+npyrinclust = npyr/numclust1
+
+!Placing the Keeping it Wild pyramid clusters
+  DO i = 1,numclust1  
+     DO j = clustbffr,nrow/2+clustbffr
+        DO k = clustbffr,upperpyrcol+clustbffr
+              pyrclustcol=k
+              pyrclustrow=j
+              DO l = pyrclustrow, pyrclustrow+pyrbffr
+                 DO m = pyrclustcol, pyrclustcol+pyrbffr
+                    IF (MOD(m-pyrbffr,pyrintvl).eq.0.and.MOD(l-pyrbffr,pyrintvl).eq.0) then
+                       pyrcol(pyrcnt)=m
+                       pyrrow(pyrcnt)=l
+                       zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
+                       pyrcnt = pyrcnt + 1
+                       IF (pyrcnt.gt.8)GO TO 678
+                    END IF
+                 END DO
+              END DO
+           END DO
+        END DO
+678     pyrcnt =  1
+!        IF (npyrclust.eq.numclust1) GO TO 4001
+        npyrclust = npyrclust + 1
+   END DO
+4001 continue
+
+! Placing the Shell pyramid clusters
+npyrclust = 1
+clustbffr = 2
+clustintvl = 1
+npyrinclust = npyr/numclust2
+!  DO i = 1,numclust2
+!     DO j = clustbffr,nrow+clustbffr
+!        DO k = clustbffr,upperpyrcol+clustbffr
+!           if (MOD(j-clustbffr,clustintvl).eq.0.and.MOD(k-clustbffr,clustintvl).eq.0) then
+!              pyrclustcol=k
+!              pyrclustrow=j
+!              DO l = pyrclustrow, pyrclustrow+pyrbffr
+!                 DO m = pyrclustcol, pyrclustcol+pyrbffr
+!                    IF (MOD(l-pyrbffr,pyrintvl).eq.0.and.MOD(m-pyrbffr,pyrintvl).eq.0) then
+!                       pyrcol(pyrcnt)=m
+!                       pyrrow(pyrcnt)=l
+!                       zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
+!                       pyrcnt = pyrcnt + 1
+!                       IF (npyrclust.eq.1.or.npyrclust.eq.2.and.pyrcnt.gt.30)GO TO 679
+!                       IF (npyrclust.eq.3.and.pyrcnt.gt.20)GO TO 679
+!                    END IF
+!                 END DO
+!              END DO
+!           END IF
+!679     pyrcnt =  1
+!        END DO
+!     END DO
+!        IF (npyrclust.eq.numclust2) GO TO 4002
+!        npyrclust = npyrclust + 1
+!  END DO
+!4002 continue
+
+!Randomly places rigs
+    DO i =1,nrigs
+
+5678    zrigcol=ran1(idum)*ncol   ! new rig col
+        zrigrow=ran1(idum)*nrow   ! new rig row
+        IF (zrigcol(i).lt.upperpyrcol) GO TO 5678
+
+        if (zhab(zrigcol(i),zrigrow(i)).ne.1)then
+          GOTO 5678  ! check and see if the cell is already a rig
+
+        else
+
+          zhab(zrigcol,zrigrow)=0
+
+        endif
+        rigcnt = rigcnt + 1
+    END DO
+END SUBROUTINE POCpyrclustandrandrig
+
+
+! This subroutine creates two large pyramid fields similar to POC with a large number of pyramids very close together
+SUBROUTINE pyrclustandrandrig
+USE allvar
+IMPLICIT NONE
+INTEGER :: rem  !remainder
+INTEGER :: pyrcnt, rigcnt, upperpyrcol  !counter and the upper column limit for pyramid placement
+INTEGER :: pyrclustcol, pyrclustrow  !column and row of randomly placed clusters of pyramids
+REAL(8) :: npyrclust, numclust
+REAL*8 ran1
+
+pyrcnt = 1
+numclust = npyr/4
+npyrclust = 1
+bffr = 2
+intvl = 1
+upperpyrcol = ncol/3
+rem = npyr - numclust*4
+IF (rem .ne. 0) THEN
+PRINT *, "Number of pyramids is not a multiple of 4"
+STOP
+END IF 
+
+  DO i = 1,numclust
+    pyrclustcol=ran1(idum)*upperpyrcol   ! new pyramid cluster col
+    pyrclustrow=ran1(idum)*nrow   ! new pyramid cluster row
+     DO j = pyrclustrow, pyrclustrow+bffr
+        DO k = pyrclustcol, pyrclustcol+bffr
+           IF (MOD(k-bffr,intvl).eq.0.and.MOD(j-bffr,intvl).eq.0) then
+              pyrcol(pyrcnt)=k
+              pyrrow(pyrcnt)=j
+              zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
+              pyrcnt = pyrcnt + 1
+              IF (pyrcnt.gt.8)GO TO 678
+           END IF
+        END DO
+     END DO
+678     pyrcnt =  1
+        IF (npyrclust.eq.numclust) GO TO 4001
+        npyrclust = npyrclust + 1
+   END DO
+4001 continue
+
+!Randomly places rigs
+    DO i =1,nrigs
+
+5678    zrigcol=ran1(idum)*ncol   ! new rig col
+        zrigrow=ran1(idum)*nrow   ! new rig row
+        IF (zrigcol(i).lt.upperpyrcol) GO TO 5678
+
+        if (zhab(zrigcol(i),zrigrow(i)).ne.1)then
+          GOTO 5678  ! check and see if the cell is already a rig
+
+        else
+
+          zhab(zrigcol,zrigrow)=0
+
+        endif
+        rigcnt = rigcnt + 1
+    END DO
+END SUBROUTINE pyrclustandrandrig
+
 !********************************************************
-!NEW - subroutine to physically insert desired rig columns and rows MDC - 14april09
+!subroutine to physically insert desired rig columns and rows MDC - 14april09
 SUBROUTINE pinsert
 USE allvar
 IMPLICIT NONE
@@ -2305,7 +2516,7 @@ SUBROUTINE subrig
 USE allvar
 INTEGER, PARAMETER:: maxcells=100   ! maximum number of cells in a neighborhood
 INTEGER xxout(maxcells),xxout1(maxcells)
-REAL xx(maxcells)    ! note not double precision so matches the dummy array in the numerical recipes
+REAL*4 xx(maxcells)    ! note not double precision so matches the dummy array in the numerical recipes
 
 DO i=1,remrigs
 
