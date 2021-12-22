@@ -5,14 +5,14 @@ MODULE allvar
   IMPLICIT NONE
   INTEGER, PARAMETER:: imodf=1000      !the number of individuals per age-class
   INTEGER,PARAMETER:: inyears = 10
-  INTEGER, PARAMETER ::  nspecies = 5    !*NEW - inserted variable nspecies so that itotf is dimensioned for the exact number of species/individuals MDC - 1apr09
+  INTEGER, PARAMETER ::  nspecies = 6    !*NEW - inserted variable nspecies so that itotf is dimensioned for the exact number of species/individuals MDC - 1apr09
   INTEGER, PARAMETER :: nages = 10       !*NEW - Number of age groups (allocates appropriate space for vul and ksat)
   INTEGER, PARAMETER:: itotf=imodf*inyears*nspecies    !total model individuals  !*FIX - inserted nspecies
   INTEGER idum                        ! random number seed
   INTEGER, PARAMETER:: nrow=50        ! number of rows
   INTEGER, PARAMETER:: ncol=50        ! number of columns
   REAL*8  xweight(itotf),xgrowth(itotf),xworth(itotf)  ! weight in g ww Not-used worth
-  INTEGER xrig(itotf)                 !  0 if not and 1 if on rig during daytime movement
+  INTEGER xrig(itotf), xpyr(itotf)                 !  0 if not and 1 if on rig during daytime movement
   INTEGER xxcell(itotf),xycell(itotf) !  x cell number and y cell number - lower left corner is 1,1
   INTEGER xage(itotf)                 ! age in years 1=1 to 12 months
   INTEGER xalive(itotf)               ! 0 alive 1 means worth too small
@@ -27,8 +27,9 @@ MODULE allvar
   INTEGER zhab(ncol,nrow)              ! 0 = rig cell.  1 = benthic cell. 2 = pyramid cell - used to multiply by prey densities
   integer pyrcol(ncol*nrow),pyrrow(ncol*nrow)  ! column number of ith pyramid and row number of ith pyramid
   integer zrigcol(ncol*nrow),zrigrow(ncol*nrow)  ! column number of ith rig and row number of ith rig
-  integer colnear(ncol,nrow), rownear(ncol,nrow) ! column number of nearest rig cell and row number
-  REAL*8 distnear(ncol,nrow)   ! distance in meters to center of nearest rig cell
+  integer colnearrig(ncol,nrow), rownearrig(ncol,nrow) ! column number of nearest rig cell and row number
+  integer colnearpyr(ncol,nrow), rownearpyr(ncol,nrow) ! column and row number of nearest pyramid cell
+  REAL*8 distnearrig(ncol,nrow), distnearpyr(ncol,nrow)   ! distance in meters to center of nearest rig cell
   REAL*8 cumhours, cumdays
   INTEGER, PARAMETER:: nprey=5       ! number of prey types
   REAL*8 kprey(ncol,nrow,nprey) ! carrying capacity (g ww/m2) in logistic for each prey type by cell
@@ -52,8 +53,10 @@ MODULE allvar
   REAL*8 initwt(nspecies,inyears)  ! initial weight by age in g wet weight
   REAL*8 dailyc(itotf)   ! g all of prey eaten/g snapper/day - sum of totcon over hours of geeding in a day
   REAL*8 xxloc(itotf),xyloc(itotf)
-  REAL*8 xdistnear(itotf)  ! distance in meters from individuals's location to the cetner of the nearest rig cell
-  INTEGER xcolnear(itotf),xrownear(itotf)  ! column and row of nearest rig cell
+  REAL*8 xdistnearrig(itotf)  ! distance in meters from individuals's location to the cetner of the nearest rig cell
+  REAL*8 xdistnearpyr(itotf)
+  INTEGER xcolnearrig(itotf),xrownearrig(itotf)  ! column and row of nearest rig cell
+  INTEGER xcolnearpyr(itotf), xrownearpyr(itotf)
   REAL*8 yield(nspecies),yieldnum(nspecies),yieldwt(nspecies) ! summed hourly yield for each day - biomass, numbers, average weight per ind, by species
   REAL*8 naturalp(nspecies), naturalpnum(nspecies) ! summed hourly natural mortality losses by day - biomass and numbers
   REAL*8 growthp(nspecies)  ! summed hourly growth production for each day by species - g ww predator per day
@@ -64,19 +67,17 @@ MODULE allvar
   REAL*8 gcmax,avgden,egest,exc,resp,egg
   REAL*8 predavg   ! instantenous mortality rate (1/hour)
   INTEGER xriskhr(itotf)  ! number of hours each individual spent off the rig during daylight for each day
-  INTEGER xuniqrig(itotf) ! number of times rig cell changes from previous daytime rig cell
-  INTEGER xxlastrig(itotf)! column number of last daytime rig cell visited
-  INTEGER xylastrig(itotf)! row number of last daytime rig cell visited
-  REAL*8  xdistcent(itotf)     ! distance of fish from the previous daytime rig cell
+  INTEGER xuniqrig(itotf), xuniqpyr(itotf) ! number of times rig cell changes from previous daytime rig cell
+  INTEGER xxlastrig(itotf), xxlastpyr(itotf) ! column number of last daytime rig cell visited
+  INTEGER xylastrig(itotf), xylastpyr(itotf) ! row number of last daytime rig cell visited
+  REAL*8  xdistcent(itotf), xdistcentpyr(itotf)     ! distance of fish from the previous daytime rig cell
   INTEGER i,j,k
   INTEGER meth         ! Method used to place rigs on grid (read from input file)
-  INTEGER :: intvl     ! Desired interval to place rigs (read from input file)
-  INTEGER :: bffr      ! Desired buffer from edge (read from input file)
   REAL*8 :: ga(nspecies),gb(nspecies),gtmax(nspecies),gtopt(nspecies),gtheta1(nspecies)  ! consumption bioenergetics terms
   REAL*8 :: ra(nspecies),rb(nspecies),rtmax(nspecies),rtopt(nspecies),rtheta2(nspecies),act(nspecies)  ! respiration bioenergetics terms
   REAL*8 :: fa(nspecies),fb(nspecies),fg(nspecies)  !egestion bioenergetics terms
   REAL*8 :: ua(nspecies),ub(nspecies),ug(nspecies)  !excretion bioenergetics terms
-  REAL*8 :: movebio(ncol,nrow),bluebio,jackbio, bio(nspecies,ncol,nrow)
+  REAL*8 :: movebio(ncol,nrow),bluebio,jackbio, gabio, bio(nspecies,ncol,nrow)
   INTEGER, PARAMETER :: iout=1    !when iout = 1 reduces the amount of written files when running production size model
   INTEGER, PARAMETER :: newrigs=0  !when newrigs > 0 choose to add (newrigs = x) number of platforms at some set interval or year determined at the first of the year.
   INTEGER, PARAMETER :: remrigs=0  !when remrigs > 0 choose to remove (remrigs = x) number of platforms at some set interval or year determined at the first of the year.
@@ -499,6 +500,8 @@ OPEN(UNIT=40,FILE='randcheck.out',STATUS='unknown')     !1059
 OPEN(UNIT=41,FILE='randcheck2.out',STATUS='unknown')     !1060
 OPEN(UNIT=42,FILE='predcheck.out',STATUS='unknown')      !1061
 OPEN(UNIT=43,FILE='cummort.out',STATUS='unknown')      !1062
+open(UNIT=44,FILE='bgga.out',STATUS='unknown')    ! 1012
+open(UNIT=45,FILE='bghga.out',STATUS='unknown')    ! 1012
 
 !NEW - READ statement to read in model options specied from an input file and used in a batch run  MDC 16apr09
 !READ (UNIT = 27, FMT = 1051) totpop(1), ipinfish, totpop(2), icroaker, totpop(3),ibluefish, totpop(4),ijack, meth, nrigs, &
@@ -569,6 +572,8 @@ pause
   READ *,totpop(5)
  endif
 !
+PRINT *, 'Enter the total pop of Greater Amberjack on each rig in numbers'
+READ *, totpop(6)
 
 call parameters   ! assign values to many model parameters
 call setupgrid        ! set up the grid and environmental variables
@@ -579,6 +584,7 @@ IF(ipinfish.eq.1)call initfish(2)   ! if grunts, then set up initial pop for gru
 IF(icroaker.eq.1)call initfish(3)  ! if grouper, set up initial pop for ggouper
 IF(ibluefish.eq.1)call initfish(4) ! if bluefish, set up initial pop for bluefish
 IF(ijack.eq.1)call initfish(5)
+call initfish(6) ! set up initial fish for greater amberjack
 
 !do i=1,itotf
 !if (MOD(i,10).eq.0) then
@@ -631,7 +637,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
            IF(xalive(ifish).eq.0)then   ! if alive then continue
              IF(inight.eq.1)then   ! if nighttime then forage around the rig- grow and die every hour
               call movenight      ! move hourly at night
-              if (xspecies(ifish).lt.5) then  ! no bioenergetics for jacks strictly movement
+              if (xspecies(ifish).ne.5) then  ! no bioenergetics for jacks strictly movement
                 call growth(1,xxcell(ifish),xycell(ifish))   ! grow the individual in location from last hour
                  IF(xspecies(ifish).eq.4)grow=0.0  ! bluefish don't grow but they do consume/compete
                  dailyc(ifish)=dailyc(ifish)+totcon(ifish)    ! g prey/g pred summed over hours in a day
@@ -655,7 +661,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
              endif  ! for inight=1
 
              if(inight.eq.2)then  ! id daylight hours move towards a rig cell
-              if(xspecies(ifish).le.3) then
+              if(xspecies(ifish).le.3.and.xspecies(ifish).eq.6) then
                if(xrig(ifish).eq.0)call moveday    ! move to nearest rig - no growth but mort does occurs (no end if statement needed in this form)
                call respiration   ! respiration for this hour
                 avgden=(ener(1)+ener(2)+ener(3)+ener(4)+ener(5))/5.0   ! default if nothing eaten, otherwise would get zero
@@ -670,7 +676,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
 
               !bluefish & jacks are going to move the same regardless of time of day, move according to biomass of species 1-3
               !bluefish & jacks do not respire
-              IF(xspecies(ifish).ge.4)call movenight
+              IF(xspecies(ifish).ge.4.and.xspecies(ifish).lt.6)call movenight
              endif ! for inight=2
 
              IF(iyear.eq.20.AND.(iday.gt.200.and.iday.lt.220))then
@@ -680,7 +686,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
              1050    FORMAT(1x,9(i5,1x),12(f12.4,1x))
              endif !end if for write statement unit 18
 
-             if(xspecies(ifish).le.3)call mortality  !no end if statement needed when entered this way
+             if(xspecies(ifish).le.3.and.xspecies(ifish).eq.6)call mortality  !no end if statement needed when entered this way
 
            ENDIF    ! end if for xalive=0
 
@@ -726,7 +732,7 @@ end program
 !****************************************************
 subroutine parameters
 USE allvar
-cellsize=200   ! meters
+cellsize=100   ! meters
 
 ! 5 prey types  1-zoop 2-crabs 3-shrimp 4-pelagic-fish 5-benthic-fish
 
@@ -803,6 +809,20 @@ vul(4,3,6)=0.0;   vul(4,3,6)=0.0;   vul(4,3,7)=0.0;   vul(4,3,8)=0.0;   vul(4,3,
 vul(4,4,6)=0.2;   vul(4,4,6)=0.2;   vul(4,4,7)=0.2;   vul(4,4,8)=0.2;   vul(4,4,10)=0.2   ! pelagic fish
 vul(4,5,6)=0.2;   vul(4,5,6)=0.2;   vul(4,5,7)=0.2;   vul(4,5,8)=0.2;   vul(4,5,10)=0.2   ! benthic fish
 
+! Species 6 - Greater Amberjack
+vul(6,1,1)=0.2;   vul(6,1,2)=0.2;   vul(6,1,3)=0.2;   vul(6,1,4)=0.2;   vul(6,1,5)=0.2   ! zoop being eaten by life stage 1 to 5
+vul(6,2,1)=0.2;   vul(6,2,2)=0.2;   vul(6,2,3)=0.2;   vul(6,2,4)=0.2;   vul(6,2,5)=0.2   ! crabs being eaten by stage 2
+vul(6,3,1)=0.05;  vul(6,3,2)=0.05;  vul(6,3,3)=0.05;  vul(6,3,4)=0.05;  vul(6,3,5)=0.05   ! shrimp being eaten by stage 3
+vul(6,4,1)=0.3;   vul(6,4,2)=0.3;   vul(6,4,3)=0.3;   vul(6,4,4)=0.3;   vul(6,4,5)=0.3   ! pelagic fish being eaten by stage 4
+vul(6,5,1)=0.1;   vul(6,5,2)=0.1;   vul(6,5,3)=0.1;   vul(6,5,4)=0.1;   vul(6,5,5)=0.1   ! benthic fish being eaten by stage 5
+
+vul(6,1,6)=0.2;   vul(6,1,7)=0.2;   vul(6,1,8)=0.2;   vul(6,1,9)=0.2;   vul(6,1,10)=0.2   ! zoop being eaten by life stage 1 to 5
+vul(6,2,6)=0.2;   vul(6,2,7)=0.2;   vul(6,2,8)=0.2;   vul(6,2,9)=0.2;   vul(6,2,10)=0.2   ! crabs being eaten by stage 2
+vul(6,3,6)=0.05;  vul(6,3,7)=0.05;  vul(6,3,8)=0.05;  vul(6,3,9)=0.05;  vul(6,3,10)=0.05   ! shrimp being eaten by stage 3
+vul(6,4,6)=0.3;   vul(6,4,7)=0.3;   vul(6,4,8)=0.3;   vul(6,4,9)=0.3;   vul(6,4,10)=0.3   ! pelagic fish being eaten by stage 4
+vul(6,5,6)=0.1;   vul(6,5,7)=0.1;   vul(6,5,8)=0.1;   vul(6,5,9)=0.1;   vul(6,5,10)=0.1   ! benthic fish being eaten by stage 5
+
+
 ! half-saturation parameters of  functional response - all in units g ww/m2
 ! ksat's have to be a number greater than zero because they are used as a denominator in the functional response
 ! species 1 - red snapper
@@ -857,6 +877,19 @@ ksat(4,3,6)=5.0;   ksat(4,3,7)=5.0;   ksat(4,3,8)=5.0;   ksat(4,3,9)=5.0;   ksat
 ksat(4,4,6)=100.0;  ksat(4,4,7)=100.0;  ksat(4,4,8)=100.0;  ksat(4,4,9)=100.0;  ksat(4,4,10)=100.0   !
 ksat(4,5,6)=100.0;  ksat(4,5,7)=100.0;  ksat(4,5,8)=100.0;  ksat(4,5,9)=100.0;  ksat(4,5,10)=100.0   !
 
+! species 6 - Greater Amberjack
+ksat(6,1,1)=155.0;   ksat(6,1,2)=160.0;   ksat(6,1,3)=165.0;   ksat(6,1,4)=170.0;  ksat(6,1,5)=175.0   ! zoop being eaten by five life stages
+ksat(6,2,1)=180.0;   ksat(6,2,2)=155.0;   ksat(6,2,3)=160.0;   ksat(6,2,4)=165.0;  ksat(6,2,5)=170.0   !
+ksat(6,3,1)=20.0;    ksat(6,3,2)=20.0;    ksat(6,3,3)=20.0;    ksat(6,3,4)=20.0;   ksat(6,3,5)=20.0   !
+ksat(6,4,1)=120.0;   ksat(6,4,2)=120.0;   ksat(6,4,3)=120.0;   ksat(6,4,4)=120.0;  ksat(6,4,5)=120.0     !
+ksat(6,5,1)=130.0;   ksat(6,5,2)=130.0;   ksat(6,5,3)=130.0;   ksat(6,5,4)=130.0;  ksat(6,5,5)=130.0   !
+
+ksat(6,1,6)=180.0;   ksat(6,1,7)=185.0;   ksat(6,1,8)=190.0;   ksat(6,1,9)=195.0;  ksat(6,1,10)=200.0   ! zoop being eaten by five life stages
+ksat(6,2,6)=175.0;   ksat(6,2,7)=180.0;   ksat(6,2,8)=185.0;   ksat(6,2,9)=190.0;  ksat(6,2,10)=195.0   !
+ksat(6,3,6)=20.0;    ksat(6,3,7)=20.0;    ksat(6,3,8)=20.0;    ksat(6,3,9)=20.0;   ksat(6,3,10)=20.0   !
+ksat(6,4,6)=120.0;   ksat(6,4,7)=120.0;   ksat(6,4,8)=120.0;   ksat(6,4,9)=120.0;  ksat(6,4,10)=120.0     !
+ksat(6,5,6)=130.0;   ksat(6,5,7)=130.0;   ksat(6,5,8)=130.0;   ksat(6,5,9)=130.0;  ksat(6,5,10)=130.0   !
+
 nmort=0.02               ! minimum instantaneous annual natural mortality rate experienced (set at background noise)
 nmorth=nmort/365.0/24.0  ! convert to per hour instantenous rate
 fmort=0.1                ! annual fishing rate per year instantenous          - could be made age dependent
@@ -870,28 +903,28 @@ nightdist=200.0        ! snapper move 200  meters per hour when foraging during 
 
 !NEW - Makes age class intiwt (therefore recruitment weight), species specific
 !Red Snapper              Pinfish                   Atlantic Croaker          Bluefish
-initwt(1,1)=111.5;        initwt(2,1)=36.87;         initwt(3,1)=88.71;        initwt(4,1)=100.7
+initwt(1,1)=111.5;        initwt(2,1)=36.87;        initwt(3,1)=88.71;        initwt(4,1)=100.7
 initwt(1,2)=416.6;        initwt(2,2)=58.43;        initwt(3,2)=181.86;       initwt(4,2)=450.6
 initwt(1,3)=961.2;        initwt(2,3)=78.85;        initwt(3,3)=286.30;       initwt(4,3)=800.0
 initwt(1,4)=1738.8;       initwt(2,4)=96.61;        initwt(3,4)=388.82;       initwt(4,4)=1150.2
-initwt(1,5)=2717.5;       initwt(2,5)=111.25;        initwt(3,5)=481.81;       initwt(4,5)=1500.0
-initwt(1,6)=3854.2;       initwt(2,6)=122.91;        initwt(3,6)=561.98;       initwt(4,6)=1850.7
+initwt(1,5)=2717.5;       initwt(2,5)=111.25;       initwt(3,5)=481.81;       initwt(4,5)=1500.0
+initwt(1,6)=3854.2;       initwt(2,6)=122.91;       initwt(3,6)=561.98;       initwt(4,6)=1850.7
 initwt(1,7)=5102.7;       initwt(2,7)=131.97;       initwt(3,7)=628.76;       initwt(4,7)=2200.7
 initwt(1,8)=6420.1;       initwt(2,8)=138.91;       initwt(3,8)=683.06;       initwt(4,8)=2550.0
 initwt(1,9)=7768.7;       initwt(2,9)=142.91;       initwt(3,9)=726.46;       initwt(4,9)=2900.0
 initwt(1,10)=12121.2;     initwt(2,10)=146.91;      initwt(3,10)=760.73;      initwt(4,10)=3000.0
 
-!Jack species
-initwt(5,1)=100.7
-initwt(5,2)=450.6
-initwt(5,3)=800.0
-initwt(5,4)=1150.2
-initwt(5,5)=1500.0
-initwt(5,6)=1850.7
-initwt(5,7)=2200.7
-initwt(5,8)=2550.0
-initwt(5,9)=2900.0
-initwt(5,10)=3000.0
+!Jack species             Greater Amberjack - Manooch & Potts 1997
+initwt(5,1)=100.7;        initwt(6,1)=1108.9
+initwt(5,2)=450.6;        initwt(6,2)=1520.0
+initwt(5,3)=800.0;        initwt(6,3)=2015.2
+initwt(5,4)=1150.2;       initwt(6,4)=2601.0
+initwt(5,5)=1500.0;       initwt(6,5)=3283.2
+initwt(5,6)=1850.7;       initwt(6,6)=4960.3
+initwt(5,7)=2200.7;       initwt(6,7)=7091.7
+initwt(5,8)=2550.0;       initwt(6,8)=8341.3
+initwt(5,9)=2900.0;       initwt(6,9)=9720.5
+initwt(5,10)=3000.0;      initwt(6,10)=12887.9
 
 END subroutine
 
@@ -904,19 +937,38 @@ zhab=1   ! start with all cells being benthic cells
 CALL setrig
 
 ! determine column and row and distance of nearst rig cell to each cell on the grid
-colnear=0; rownear=0   ! start with cell numbers of nearest cell at zeroes
+colnearrig=0; rownearrig=0   ! start with cell numbers of nearest cell at zeroes
 do i=1,ncol
    do j=1,nrow
-       olddist=nrow*ncol*cellsize        ! use maximum distance possible for initial value prior to search
+       olddistrig=nrow*ncol*cellsize        ! use maximum distance possible for initial value prior to search
        do k=1,nrigs
            xside=ABS(zrigcol(k)-i)*cellsize
            yside=ABS(zrigrow(k)-j)*cellsize
            dist=SQRT(xside**2 + yside**2)
-           IF(dist.lt.olddist)then
-               distnear(i,j)=dist           ! distance in meters from nearest rig cell to cell i,j
-               colnear(i,j)=zrigcol(k)      ! column number of nearest rig cell to cell i,j
-               rownear(i,j)=zrigrow(k)      ! row number of nearest rig cell to cell i,j
-               olddist=dist
+           IF(dist.lt.olddistrig)then
+               distnearrig(i,j)=dist           ! distance in meters from nearest rig cell to cell i,j
+               colnearrig(i,j)=zrigcol(k)      ! column number of nearest rig cell to cell i,j
+               rownearrig(i,j)=zrigrow(k)      ! row number of nearest rig cell to cell i,j
+               olddistrig=dist
+           endif
+       END do
+  end do
+end do
+
+! determine columnc and row and distance of nearest pyramid cell to each cell on the grid
+colnearpyr=0; rownearpyr=0   ! start with cell numbers of nearest cell at zeroes
+do i=1,ncol
+   do j=1,nrow
+       olddistpyr=nrow*ncol*cellsize        ! use maximum distance possible for initial value prior to search
+       do k=1,npyr
+           xside=ABS(pyrcol(k)-i)*cellsize
+           yside=ABS(pyrrow(k)-j)*cellsize
+           dist=SQRT(xside**2 + yside**2)
+           IF(dist.lt.olddistpyr)then
+               distnearpyr(i,j)=dist           ! distance in meters from nearest rig cell to cell i,j
+               colnearpyr(i,j)=zrigcol(k)      ! column number of nearest rig cell to cell i,j
+               rownearpyr(i,j)=zrigrow(k)      ! row number of nearest rig cell to cell i,j
+               olddistpyr=dist
            endif
        END do
   end do
@@ -928,7 +980,7 @@ do i=1,ncol
       do k=1,nprey
          kprey(i,j,k)=kkprey(k)
          rprey(i,j,k)=rrprey(k)
-         IF(distnear(i,j)/cellsize.lt.4.0)then   ! option to set prey K and r to cell-specific values - eg near rig
+         IF(distnearrig(i,j)/cellsize.lt.4.0.or.distnearpyr(i,j)/cellsize.lt.4.0)then   ! option to set prey K and r to cell-specific values - eg near rig
            kprey(i,j,k)=kkprey(k)*1.0
            rprey(i,j,k)=rrprey(k)*1.0
          endif
@@ -936,7 +988,7 @@ do i=1,ncol
    end do
 end do
 
-zprey=kprey    ! initial densities of all 5 prey types set to their carrying capacity (g ww/m2)
+zprey=kprey   ! initial densities of all 5 prey types set to their carrying capacity (g ww/m2)
 
 do i=1,ncol   ! write out the column and row and distance to nearest rig cell for every cell on the grid
   do j=1,nrow
@@ -958,8 +1010,13 @@ xsp=xspecies(ifish)
 
 dmortc=0.1/365/24  !(constrains mortality to some value for the distance function) hourly rate!!!
 
-tt1=1.114 - 1.2003e-7*distnear(ii,jj)**2
-IF(distnear(ii,jj).gt.1000.)tt1=1.0
+IF (distnearrig(ii,jj).lt.distnearpyr(ii,jj)) then ! Including the pyramid changes. If the fish is closer to a rig, then apply rig distnear, if closer to pyramid, apply pyramid distnear - 12/22
+tt1=1.114 - 1.2003e-7*distnearrig(ii,jj)**2
+else
+tt1=1.114 - 1.2003e-7*distnearpyr(ii,jj)**2
+end if
+
+IF(distnearrig(ii,jj).gt.1000.0.or.distnearpyr(ii,jj).gt.1000) tt1=1.0
 IF(tt1.lt.1.0)tt1=1.0
 
 m1=dmortc  !red snapper
@@ -983,10 +1040,10 @@ subroutine nearrig
 USE allvar
 ! determine nearest rig cell for each fish for each hour
 
-  colnear=0  ! start at zero
-  rownear=0
+  colnearrig=0  ! start at zero
+  rownearrig=0
 
-  olddist=nrow*ncol*cellsize  ! largest distance that is possible to start with
+  olddistrig=nrow*ncol*cellsize  ! largest distance that is possible to start with
        do k=1,nrigs  ! search over the list of rig cells
            xside=(zrigcol(k))*cellsize + cellsize/2.0  ! assume rigs at center of cell - meters from left edge of grid
            yside=(zrigrow(k))*cellsize + cellsize/2.0  ! meters from bottom of grid
@@ -994,10 +1051,43 @@ USE allvar
            adj=(xside-xxloc(ifish))  ! meters of horizontal line from current location to center of k-th rig cell
            dist=SQRT(opp**2 + adj**2)  ! distance in meters of the line from current location to the center of the i-th rig cell
             IF(dist.lt.olddist)then ! see if shortest so far in search through the list of rig cells
-               xdistnear(ifish)=dist  ! actual distance of shortest distance
-               xcolnear(ifish)=zrigcol(k)  ! column number of the rig cell
-               xrownear(ifish)=zrigrow(k)   ! row number of the rig cell
-               olddist=dist  ! replace shortest so far with the new shortest vaale
+               xdistnearrig(ifish)=dist  ! actual distance of shortest distance
+               xcolnearrig(ifish)=zrigcol(k)  ! column number of the rig cell
+               xrownearrig(ifish)=zrigrow(k)   ! row number of the rig cell
+               olddistrig=dist  ! replace shortest so far with the new shortest vaale
+           endif
+
+!       if (ifish.eq.23.and.iyear.eq.1.and.iday.ge.300) then
+!         WRITE(41,1060)iyear,iday,ihour,inight,ifish,xsp,k,xycell(ifish),xxcell(ifish),xcolnear(ifish),xrownear(ifish),dist,&
+!                       & xdistnear(ifish),oldist
+!         1060   FORMAT(1x,11(i6,1x),3(e12.2,1x)) !replicate once, 11 values, i6 - create a column where it'll take integers of 6 places, then create 3 that are out to 12 decimals. so basically put you are writing out the file and formatting it with the 1060 format from above
+!       end if
+
+
+       END do
+
+end subroutine
+!-----------------------------------------------------*
+
+subroutine nearpyr
+USE allvar
+! determine nearest rig cell for each fish for each hour
+
+  colnearpyr=0  ! start at zero
+  rownearpyr=0
+
+  olddistpyr=nrow*ncol*cellsize  ! largest distance that is possible to start with
+       do k=1,npyr  ! search over the list of rig cells
+           xside=(pyrcol(k))*cellsize + cellsize/2.0  ! assume rigs at center of cell - meters from left edge of grid
+           yside=(pyrrow(k))*cellsize + cellsize/2.0  ! meters from bottom of grid
+           opp=(yside-xyloc(ifish))  ! meters of vertical line from current location to cetner of k-th rig cell
+           adj=(xside-xxloc(ifish))  ! meters of horizontal line from current location to center of k-th rig cell
+           dist=SQRT(opp**2 + adj**2)  ! distance in meters of the line from current location to the center of the i-th rig cell
+            IF(dist.lt.olddistpyr)then ! see if shortest so far in search through the list of rig cells
+               xdistnearpyr(ifish)=dist  ! actual distance of shortest distance
+               xcolnearpyr(ifish)=zrigcol(k)  ! column number of the rig cell
+               xrownearpyr(ifish)=zrigrow(k)   ! row number of the rig cell
+               olddistpyr=dist  ! replace shortest so far with the new shortest vaale
            endif
 
 !       if (ifish.eq.23.and.iyear.eq.1.and.iday.ge.300) then
@@ -1052,6 +1142,44 @@ end if
 
 end subroutine onrig
 
+!----------------------------------------------------
+
+!DEL - commented out subroutine onrig and substituted the onrig(kk) version.  So that xrig can be updated in the initial conditions and within the loop
+!CP2 --- removed and placed at the bottom of the program with full remarks - !MDC - 2apr2009
+
+!*FIX - inserted code to make call to onrig flexible.  Initialization and recruitment was problematic  MDC 2apr2009
+
+subroutine onpyr(kk)
+USE allvar
+! determine if individual is on a rig cell this hour
+     xpyr(kk)=0  ! assume off pyr so can call from movenight and moveday
+       do k=1,npyr   ! search list of rigs
+          IF(xxcell(kk).eq.pyrcol(k).and.xycell(kk).eq.pyrrow(k))then   ! column and row correspond to a rig cell
+             xpyr(kk)=1   ! switch value of flag to denote now on a rig cell
+! *NEW - Inserted IF THEN statement below.  Otherwise no original code was modified or deleted.
+! In the original code when the fish is on a rig in the daytime, the fish is placed at center
+! During the evening the fish does not get relocated to the center of the rig cell.  MDC 17March09
+
+             IF(inight.eq.2)then  !*NEW - see note above
+             xxloc(kk)=(pyrcol(k))*cellsize + cellsize/2.0   ! put fish who reach a rig during daytime at center of rig cell
+             xyloc(kk)=(pyrrow(k))*cellsize + cellsize/2.0
+             END if
+          endif                                                  
+       END do
+
+if (inight.eq.2.and.xpyr(kk).eq.1) then
+    if (xxcell(kk).eq.xxlastpyr(kk).and.xycell(kk).eq.xylastpyr(kk)) then
+      xuniqpyr(kk)=xuniqpyr(kk)
+    else
+      xuniqpyr(kk)=xuniqpyr(kk)+1
+    end if
+
+    xxlastpyr(kk)=xxcell(kk)
+    xylastpyr(kk)=xycell(kk)
+end if
+
+end subroutine 
+
 !---------------------------------------------------------------------
 subroutine initfish(xsp)
 USE allvar
@@ -1098,6 +1226,9 @@ do i=1,inyears
     xxlastrig(jj)=-1
     xylastrig(jj)=-1
 
+    xuniqpyr(jj)=0
+    xxlastpyr(jj)=-1
+    xylastpyr(jj)=-1
     !*DEL - Commented out xrig(jj) = 0.  Why start all fish arbitrarily at 0.  Why not find their exact status?  MDC 20March09
     !xrig(jj)=0             ! start with xrig equal zero - overwritten if actually started on a rig cell.  See *FIX below
     !*FIX - put in onrig(jj) so that onrig can be used in initfish, the loop and the call AGE  MDC 2apr2009
@@ -1117,8 +1248,8 @@ do i=1,inyears
    end do
 END do
 
-sumfish= jj  ! store running total of new individuals so can add to it for the next species --sumfish is used to
-             !start jj for the next species stopped in the loop, jj=(i-1)*imodf + sumfish
+sumfish = jj  ! store running total of new individuals so can add to it for the next species --sumfish is used to
+              ! start jj for the next species stopped in the loop, jj=(i-1)*imodf + sumfish
 
 !  PRINT *,'sumfish i jj',sumfish,i,jj
 !  pause
@@ -1237,7 +1368,7 @@ INTEGER icol,jrow,iflag,xsp
   !     pause
 
       !* NEW MDC - redsnapper uses a temperature dependent function to calculate egestion and excretion
-      IF(xsp.eq.1)THEN
+      IF(xsp.eq.1.and.xsp.eq.6)THEN ! GACHANGE THIS WHEN WE GET THE APPROPRIATE GROWTH PARAMETERS IN FOR GREATER AMBERJACK
        p=totcon(ifish)/gcmax   ! p-value
        pe=fa(xsp)*watertemp**(fb(xsp)) *EXP(fg(xsp)*p)
        pff=0.0
@@ -1346,13 +1477,14 @@ REAL*8 goxcon
   if (xsp.eq.2)goxcon=3.8558
   if (xsp.eq.3)goxcon=2.9511
   if (xsp.eq.4)goxcon=2.1593
+  if (xsp.eq.6)goxcon=3.3750 ! 14140 J/gO2 from Brodie et al. 2016, then used cross multiplication with the value from Campbell equation 11 and the value for species 1 above (14140/x)=(13569/3.2387)
 
   resp = ra(xsp)*xweight(ifish)**(rb(xsp)) * grtemp * act(xsp) * goxcon !3.9686   ! g prey/g fish, x 2 is activity multipler, 0.7938 is g oxygen/g prey
 
      IF(inight.eq.2.and.xrig(ifish).eq.0)then  ! daylight hours and not on a rig cell
        !CHANGE - original conditions  MDC 6may09
        IF(xspecies(ifish).eq.1.or.xspecies(ifish).eq.3)resp=resp*1.3  ! 30% increase in respiration for snapper and grouper
-       IF(xspecies(ifish).eq.2)resp=resp*1.3   ! 30% increase for grunts
+       IF(xspecies(ifish).eq.2.or.xspecies(ifish).eq.6)resp=resp*1.3   ! 30% increase for grunts
 
        !NEW - use higher respiration penalty for grunts  MDC 6may09
        !IF(xspecies(ifish).eq.1.or.xspecies(ifish).eq.3)resp=resp*1.1  ! 30% increase in respiration for snapper and grouper
@@ -1415,7 +1547,7 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
        jr = rowk(icell)       ! jr is the row number of the ii-th cells in the list
 
        !*NEW MDC, only call growth to move species 1,2,3
-       if (xsp.le.3) then
+       if (xsp.le.3.and.xsp.eq.6) then
         call growth(2,ic,jr)   ! the 2 tells growth subroutine that this call is not for real but for evaluating cells for movement
          IF(ihour.le.2)THEN !first 2 hours off the rig choose a random direction to swim
            newcol = ic     ! column number of best cell so far in the list
@@ -1431,7 +1563,7 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
 
        !NEW MDC, find highest prey density to move bluefish and jack around grid, called for both day and night movement
        !Removing the if statement comparing movebio to oldbio
-       if (xsp.ge.4) then
+       if (xsp.ge.4.and.xsp.lt.6) then
 !        IF(movebio(ic,jr).gt.1.2*oldbio)THEN  ! note 1.2 to avoid 4.999 versus 5.0000 from attracting fish - must be at least 20% greater
             newcol = ic     ! column number of best cell so far in the list
             newrow = jr     ! row number of best cells in the list so far
@@ -1474,6 +1606,7 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
      IF(xsp.eq.3)t1=1.2   ! croaker wander more
      IF(xsp.eq.4)t1=1.5   ! 1.5 bluefish move fast
      IF(xsp.eq.5)t1=1.5   ! 1.5 jacks move fast
+     IF(xsp.eq.6)t1=1.5   ! GA move fast
 
      IF(ran1(idum).lt.0.5)then !  randomness on nightdist
         tt2=-1.0   ! move left
@@ -1614,7 +1747,7 @@ end subroutine moveday
 subroutine mortality
 USE allvar
 INTEGER xsp
-REAL*8 m1,distmorth,m2,blueratio, jackratio, eqn8090,m3a,m3b,m3,m4,z
+REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,z
 ! could be day verus night dependent
 
    xsp=xspecies(ifish)
@@ -1641,9 +1774,11 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, eqn8090,m3a,m3b,m3,m4,z
    if(iday.eq.1.and.ihour.eq.1)then  !hour 1 of day 1 biomass in previous hour is unknown so we can't scale mort.  Set to 0
       blueratio = 0.0
       jackratio = 0.0
+      garatio = 0.0
    else
       blueratio = bio(4,xxcell(ifish),xycell(ifish))/bluebio ! cell by cell biomass of species 4 / gridwide average biomass species 4
       jackratio = bio(5,xxcell(ifish),xycell(ifish))/jackbio ! cell by cell biomass of species 5 / gridwide average biomass species 5
+      garatio = bio(6,xxcell(ifish),xycell(ifish))/gabio     ! cell by cell biomass of species 6 / gridwide average biomass species 6
    endif
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1667,7 +1802,8 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, eqn8090,m3a,m3b,m3,m4,z
    if(inight.eq.2.and.xrig(ifish).eq.0)then  !daytime/off rig, apply mortality
      m3a = pmorth*eqn8090(blueratio )    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
      m3b = pmorth*eqn8090(jackratio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
-     m3 = m3a + m3b
+     m3c = pmorth*eqn8090(garatio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
+     m3 = m3a + m3b + m3c
    else  !daytime/on rig, nighttime both, provides refuge
      m3 = 0.0
    endif
@@ -1704,7 +1840,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, eqn8090,m3a,m3b,m3,m4,z
      m1=m1*365*24; m2=m2*365*24; m3=m3*365*24; m4=m4*365*24; z=z*365*24
 
       WRITE(42,1061)cumhours,iyear,iday,ihour,inight,ifish,xsp,xrig(ifish),m1,distnear(xxcell(ifish),xycell(ifish)),&
-      &             m2, blueratio, jackratio, m3, m4, z, xcmort(ifish)
+      &             m2, blueratio, jackratio, garatio, m3, m4, z, xcmort(ifish)
       1061  FORMAT(1x,e12.5,7(i6,1x),9(f14.9,1x))
 
      m1=m1/365/24; m2=m2/365/24; m3=m3/365/24; m4=m4/365/24; z=z/365/24
@@ -1810,7 +1946,7 @@ INTEGER xsp
 
   idcount=0   ! number of newly freed up spots in the arrays due to removal of individuals from old age
   do i=1,itotf
-     IF(xspecies(i).le.3)then ! species 4 does not age or recruit new (itotf = 1501-2000)
+     IF(xspecies(i).le.3.and.xspecies(i).eq.6)then ! species 4 does not age or recruit new (itotf = 1501-2000)
        xage(i)=xage(i)+1   ! one year older   1 is 12-24 months old  2=24 to 36
        IF(xage(i).le.2)xstage(i)=1  ! update stage flag for this individual
        IF(xage(i).ge.3.and.xage(i).le.4)xstage(i)=2
@@ -1826,12 +1962,12 @@ INTEGER xsp
   end do
 
 !  add new year-class for each species
-itt=1   ! always add new individuals for snapper
-IF(ipinfish.eq.1)itt=itt+1   ! means 2 species in the model
-IF(icroaker.eq.1)itt=itt+1  ! means 2 or 3 species in the model
-! itt=1 red snapper only; itt=2 snapper and either grunts or grouper; itt=3 all three species
+itt=2   ! always add new individuals for snapper
+IF(ipinfish.eq.1)itt=itt+1   ! means 3 species in the model
+IF(icroaker.eq.1)itt=itt+1  ! means 3 or 4 species in the model
+! itt=2 red snapper and greater amberjack only; itt=2 snapper, ga, and either grunts or grouper; itt=3 all four species
 
-  do j=1,imodf*itt   ! number of new individuals of all three species
+  do j=1,imodf*itt   ! number of new individuals of all four species
       jj=idaval(j)   ! array element number that was occupied by an old age individual removed above
       idcount=idcount-1 ! one less in the counter of available spots
       IF(idcount.LE.-1)then
@@ -1853,17 +1989,20 @@ IF(icroaker.eq.1)itt=itt+1  ! means 2 or 3 species in the model
     xxlastrig(jj)=-1
     xylastrig(jj)=-1
 
-! assign species id (1=snapper, 2=grunts 3=grouper)
+! assign species id (1=snapper, 2=grunts, 3=grouper, 6=greater amberjack)
     IF(j.le.imodf)xspecies(jj)=1  ! must always have snapper so first set of imodf new individuals is snapper
 
+! assigning greater amberjack
+    IF(j.gt.imodf.and.j.le.(2*imodf))xspecies=6 ! must have greater amberjack as 2 in case there aren't grunts or grouper
+
 ! so if second set of imodf number of new individuals and grunt are present then grunt
-    IF((j.gt.imodf.and.j.LE.(2*imodf)).and.ipinfish.EQ.1)xspecies(jj)=2
+    IF((j.gt.(2*imodf).and.j.LE.(3*imodf)).and.ipinfish.EQ.1)xspecies(jj)=2
 
 ! second set of new ind but grouper and no grunts so these are grouper
-    IF((j.gt.imodf.and.j.LE.(2*imodf)).AND.(ipinfish.EQ.0.and.icroaker.eq.1))xspecies(jj)=3
+    IF((j.gt.(2*imodf).and.j.LE.(3*imodf)).AND.(ipinfish.EQ.0.and.icroaker.eq.1))xspecies(jj)=3
 
 ! third set of imodf individuals - must have gruntsand grouper so these are grouper
-    IF((j.gt.2*imodf).AND.(ipinfish.EQ.1.and.icroaker.eq.1))xspecies(jj)=3   ! fixed the imodf multiplier to read 2*imodf
+    IF((j.gt.3*imodf).AND.(ipinfish.EQ.1.and.icroaker.eq.1))xspecies(jj)=3   ! fixed the imodf multiplier to read 2*imodf
 
     xweight(jj)=initwt(xspecies(jj),1)              ! initial weight by species for age 1, in g ww
 
@@ -1998,6 +2137,7 @@ INTEGER xsp
 movebio=0.0
 bluebio=0.0
 jackbio=0.0
+gabio = 0.0
 bio=0.0
 do i=1,itotf
     xsp=xspecies(i)
@@ -2007,12 +2147,14 @@ do i=1,itotf
         bio(xsp,ii,jj) = bio(xsp,ii,jj) + xworth(i)*xweight(i) ! biomass (g ww) by species and cell
         bluebio=bluebio+bio(4,ii,jj) ! running sum of cell by cell bluefish biomass
         jackbio=jackbio+bio(5,ii,jj)
-        IF(xsp.le.3)movebio(ii,jj) = movebio(ii,jj) + xworth(i)*xweight(i) ! used to calculate cell by cell total biomass for species 1
+        gabio=gabio+bio(6,ii,jj)
+        IF(xsp.le.3.and.xsp.eq.6)movebio(ii,jj) = movebio(ii,jj) + xworth(i)*xweight(i) ! used to calculate cell by cell total biomass for species 1
     endif
 end do
 
 bluebio=bluebio/(ncol*nrow)  !gridwide average of bluefish biomass
 jackbio=jackbio/(ncol*nrow)  !gridwide average of jack biomass
+gabio=gabio/(ncol*nrow)      !gridwide average of ga biomass 
 
 ! write out biomass by species and cell during year five, every 60 days
 !IF(mod(iday,5).eq.0.and.iyear.le.1)then
@@ -2026,6 +2168,7 @@ do i=1,ncol
        WRITE(23,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(3,i,j)
        WRITE(35,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(4,i,j)
        WRITE(36,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(5,i,j)
+       WRITE(44,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(6,i,j)
      endif
      IF(iday.eq.240)then
        WRITE(19,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(1,i,j)
@@ -2033,6 +2176,7 @@ do i=1,ncol
        WRITE(25,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(3,i,j)
        WRITE(37,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(4,i,j)
        WRITE(38,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(5,i,j)
+       WRITE(45,1012)cumhours,iyear,iday,jday,ihour,inight,i,j,bio(6,i,j)
      endif
 
 1012  FORMAT(1x,e12.5,1x,7(i5,1x),e12.5,1x)
@@ -2079,7 +2223,7 @@ SUBROUTINE pyrfieldandrandrig
 USE allvar
 IMPLICIT NONE
 INTEGER :: upperpyrcol, lowerrigcol, upperrigcol
-INTEGER :: pyrcnt, rigcnt
+INTEGER :: bffr, intvl, pyrcnt, rigcnt
 REAL*8 ran1
 
 pyrcnt = 1
@@ -2231,15 +2375,15 @@ USE allvar
 IMPLICIT NONE
 INTEGER :: rem  !remainder
 INTEGER :: pyrcnt, rigcnt, upperpyrcol  !counter and the upper column limit for pyramid placement
-INTEGER :: pyrclustcol, pyrclustrow  !column and row of randomly placed clusters of pyramids
-REAL(8) :: npyrclust, numclust
+REAL(8) :: pyrclustcol, pyrclustrow  !column and row of randomly placed clusters of pyramids
+REAL(8) :: npyrclust, numclust, bffr, intvl, thispyrcol(nrow*ncol), thispyrrow(nrow*ncol)
 REAL*8 ran1
 
 pyrcnt = 1
 numclust = npyr/4
 npyrclust = 1
-bffr = 2
-intvl = 1
+bffr = 0.5
+intvl = 0.5
 upperpyrcol = ncol/3
 rem = npyr - numclust*4
 IF (rem .ne. 0) THEN
@@ -2252,13 +2396,13 @@ END IF
     pyrclustrow=ran1(idum)*nrow   ! new pyramid cluster row
      DO j = pyrclustrow, pyrclustrow+bffr
         DO k = pyrclustcol, pyrclustcol+bffr
-           IF (MOD(k-bffr,intvl).eq.0.and.MOD(j-bffr,intvl).eq.0) then
-              pyrcol(pyrcnt)=k
-              pyrrow(pyrcnt)=j
-              zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
+!           IF (MOD(k-bffr,intvl).eq.0.and.MOD(j-bffr,intvl).eq.0) then
+              thispyrcol(pyrcnt)=k
+              thispyrrow(pyrcnt)=j
+              zhab(thispyrcol(pyrcnt), thispyrrow(pyrcnt))=2
               pyrcnt = pyrcnt + 1
-              IF (pyrcnt.gt.8)GO TO 678
-           END IF
+              IF (pyrcnt.gt.4)GO TO 678
+ !          END IF
         END DO
      END DO
 678     pyrcnt =  1
@@ -2398,7 +2542,7 @@ END SUBROUTINE centclust
 SUBROUTINE uniform
 USE allvar
 IMPLICIT NONE
-INTEGER :: cnt       ! Counter
+INTEGER :: cnt, bffr, intvl       ! Counter
 INTEGER :: rem       ! Remainder check
 INTEGER :: rowcount  ! Trims number of column places available in a row to 1 - square root of nrigs
 !INTEGER :: intvl, bffr
