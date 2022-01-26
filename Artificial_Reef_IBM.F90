@@ -12,23 +12,26 @@ MODULE allvar
   INTEGER, PARAMETER:: nrow=50        ! number of rows
   INTEGER, PARAMETER:: ncol=50        ! number of columns
   REAL*8  xweight(itotf),xgrowth(itotf),xworth(itotf)  ! weight in g ww Not-used worth
-  INTEGER xrig(itotf), xpyr(itotf)                 !  0 if not and 1 if on rig during daytime movement
+  INTEGER xhab(itotf), xpyr(itotf), xnat(itotf)        !  0 if not and 1 if on rig during daytime movement
   INTEGER xxcell(itotf),xycell(itotf) !  x cell number and y cell number - lower left corner is 1,1
   INTEGER xage(itotf)                 ! age in years 1=1 to 12 months
   INTEGER xalive(itotf)               ! 0 alive 1 means worth too small
-  INTEGER xspecies(itotf)             !  1=red snapper 2=grunts 3=grouper 4=bluefish
+  INTEGER xspecies(itotf)             !  1=red snapper 2=grunts 3=grouper 4=bluefish 5=jacks 6=ga
   REAL*8 xdailymove(itotf)           ! total daily movement (m)
   REAL*8 xcmort(itotf)             ! daily cumulative mortality experienced
   REAL*8 grow                         ! g ww pred/g wwpred/hour
   INTEGER ifish, inight, ihour        ! id 1=night and 2=day  hours from 1 to 24
   integer iday, jday, iyear           ! model day  julian day  and year counter
-  INTEGER nrigs, npyr                 !  number of cells that have rigs and pyramids
+  INTEGER nrigs, npyr, numnatcells    !  number of cells that have rigs, pyramids, and nat banks
   REAL*8  cellsize                    ! side of cells in meters
-  INTEGER zhab(ncol,nrow)              ! 0 = rig cell.  1 = benthic cell. 2 = pyramid cell - used to multiply by prey densities
+  INTEGER zhab(ncol,nrow)             ! 0 = rig cell.  1 = benthic cell. 2 = pyramid cell. 3 - natural bank - used to multiply by prey densities
+  INTEGER habtype                     ! 1=rig, 2=pyr, 3=nat
+  integer natcol(ncol*nrow),natrow(ncol*nrow)  ! column number of ith pyramid and row number of ith pyramid
   integer pyrcol(ncol*nrow),pyrrow(ncol*nrow)  ! column number of ith pyramid and row number of ith pyramid
   integer zrigcol(ncol*nrow),zrigrow(ncol*nrow)  ! column number of ith rig and row number of ith rig
   integer colnearrig(ncol,nrow), rownearrig(ncol,nrow) ! column number of nearest rig cell and row number
   integer colnearpyr(ncol,nrow), rownearpyr(ncol,nrow) ! column and row number of nearest pyramid cell
+  integer colnearnat(ncol,nrow), rownearnat(ncol,nrow) ! column and row number of nearest pyramid cell
   REAL*8 distnearrig(ncol,nrow), distnearpyr(ncol,nrow)   ! distance in meters to center of nearest rig cell
   REAL*8 cumhours, cumdays
   INTEGER, PARAMETER:: nprey=5       ! number of prey types
@@ -55,8 +58,10 @@ MODULE allvar
   REAL*8 xxloc(itotf),xyloc(itotf)
   REAL*8 xdistnearrig(itotf)  ! distance in meters from individuals's location to the cetner of the nearest rig cell
   REAL*8 xdistnearpyr(itotf)
+  REAL*8 xdistnearnat(itotf)
   INTEGER xcolnearrig(itotf),xrownearrig(itotf)  ! column and row of nearest rig cell
   INTEGER xcolnearpyr(itotf), xrownearpyr(itotf)
+  INTEGER xcolnearnat(itotf), xrownearnat(itotf)
   REAL*8 yield(nspecies),yieldnum(nspecies),yieldwt(nspecies) ! summed hourly yield for each day - biomass, numbers, average weight per ind, by species
   REAL*8 naturalp(nspecies), naturalpnum(nspecies) ! summed hourly natural mortality losses by day - biomass and numbers
   REAL*8 growthp(nspecies)  ! summed hourly growth production for each day by species - g ww predator per day
@@ -67,10 +72,10 @@ MODULE allvar
   REAL*8 gcmax,avgden,egest,exc,resp,egg
   REAL*8 predavg   ! instantenous mortality rate (1/hour)
   INTEGER xriskhr(itotf)  ! number of hours each individual spent off the rig during daylight for each day
-  INTEGER xuniqrig(itotf), xuniqpyr(itotf) ! number of times rig cell changes from previous daytime rig cell
-  INTEGER xxlastrig(itotf), xxlastpyr(itotf) ! column number of last daytime rig cell visited
-  INTEGER xylastrig(itotf), xylastpyr(itotf) ! row number of last daytime rig cell visited
-  REAL*8  xdistcent(itotf), xdistcentpyr(itotf)     ! distance of fish from the previous daytime rig cell
+  INTEGER xuniqrig(itotf), xuniqpyr(itotf), xuniqnat(itotf) ! number of times rig cell changes from previous daytime rig cell
+  INTEGER xxlastrig(itotf), xxlastpyr(itotf), xxlastnat(itotf) ! column number of last daytime rig cell visited
+  INTEGER xylastrig(itotf), xylastpyr(itotf), xylastnat(itotf) ! row number of last daytime rig cell visited
+  REAL*8  xdistcent(itotf), xdistcentpyr(itotf), xdistcenternat(itotf)     ! distance of fish from the previous daytime rig cell
   INTEGER i,j,k
   INTEGER meth         ! Method used to place rigs on grid (read from input file)
   REAL*8 :: ga(nspecies),gb(nspecies),gtmax(nspecies),gtopt(nspecies),gtheta1(nspecies)  ! consumption bioenergetics terms
@@ -78,6 +83,7 @@ MODULE allvar
   REAL*8 :: fa(nspecies),fb(nspecies),fg(nspecies)  !egestion bioenergetics terms
   REAL*8 :: ua(nspecies),ub(nspecies),ug(nspecies)  !excretion bioenergetics terms
   REAL*8 :: movebio(ncol,nrow),bluebio,jackbio, gabio, bio(nspecies,ncol,nrow)
+  REAL*8 :: q10(nspecies)
   INTEGER, PARAMETER :: iout=1    !when iout = 1 reduces the amount of written files when running production size model
   INTEGER, PARAMETER :: newrigs=0  !when newrigs > 0 choose to add (newrigs = x) number of platforms at some set interval or year determined at the first of the year.
   INTEGER, PARAMETER :: remrigs=0  !when remrigs > 0 choose to remove (remrigs = x) number of platforms at some set interval or year determined at the first of the year.
@@ -662,7 +668,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
 
              if(inight.eq.2)then  ! id daylight hours move towards a rig cell
               if(xspecies(ifish).le.3.and.xspecies(ifish).eq.6) then
-               if(xrig(ifish).eq.0)call moveday    ! move to nearest rig - no growth but mort does occurs (no end if statement needed in this form)
+               if(xhab(ifish).eq.0)call moveday    ! move to nearest rig, pyr, or nat cell - no growth but mort does occurs (no end if statement needed in this form)
                call respiration   ! respiration for this hour
                 avgden=(ener(1)+ener(2)+ener(3)+ener(4)+ener(5))/5.0   ! default if nothing eaten, otherwise would get zero
 !               g ww/ind    = g ww/ind  -   g equivalents of prey respired in an hour * (cal/g prey)/(cal/g pred) * g ww/ind
@@ -670,7 +676,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
 !               g ww          =    g ww - loss due to respiration but times pop worth of each individual
                 growthp(xspecies(ifish))=growthp(xspecies(ifish))-(resp/24.0)*avgden/en(xspecies(ifish))*xweight(ifish)*xworth(ifish)
 
-                IF(xrig(ifish).eq.0)xriskhr(ifish)=xriskhr(ifish)+1   ! number of hours off rig during daylight
+                IF(xhab(ifish).eq.0)xriskhr(ifish)=xriskhr(ifish)+1   ! number of hours off rig during daylight
 
               endif ! ifish.le.3
 
@@ -680,7 +686,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
              endif ! for inight=2
 
              IF(iyear.eq.20.AND.(iday.gt.200.and.iday.lt.220))then
-                 WRITE(18,1050)iyear,iday,ihour,inight,ifish,xspecies(ifish),xrig(ifish),xxcell(ifish),xycell(ifish),&
+                 WRITE(18,1050)iyear,iday,ihour,inight,ifish,xspecies(ifish),xhab(ifish),xxcell(ifish),xycell(ifish),&
                           &  xxloc(ifish),xyloc(ifish),xweight(ifish),gcmax, &
                           &  totcon(ifish),dailyc(ifish),dailyp(ifish),resp/12.0,egest,exc,egg/12.0,grow
              1050    FORMAT(1x,9(i5,1x),12(f12.4,1x))
@@ -696,7 +702,7 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
            !IF(iyear.eq.2.AND.MOD(ifish,100).eq.0.and.(iday.eq.10.or.iday.eq.11.or.iday.eq.12.or.iday.eq.13))then
 
             WRITE(10,1000)cumhours,iyear,iday,jday,ihour,inight,xspecies(ifish),ifish,xalive(ifish),xxcell(ifish),&
-                 &   xycell(ifish),xxloc(ifish),xyloc(ifish),xrig(ifish),xweight(ifish),(geat(kk),kk=1,nprey)  ! geat is g prey/g pred/hour
+                 &   xycell(ifish),xxloc(ifish),xyloc(ifish),xhab(ifish),xweight(ifish),(geat(kk),kk=1,nprey)  ! geat is g prey/g pred/hour
            endif !end if write statement unit 10
            1000      FORMAT(1x,e12.3,1x,6(i5,1x),i10,1x,3(i4,1x),1x,2(f12.4,1x),i3,1x,10(f12.4,1x))
 
@@ -1020,12 +1026,15 @@ IF(distnearrig(ii,jj).gt.1000.0.or.distnearpyr(ii,jj).gt.1000) tt1=1.0
 IF(tt1.lt.1.0)tt1=1.0
 
 m1=dmortc  !red snapper
-!scale natural mortality up for atl croaker and pinfish
+!scale natural mortality up for atl croaker and pinfish and greater amberjack
 if (xsp.eq.2) then  !Nelson 2002 listed a yearly mortality rate of 0.78/yr
      m1=dmortc*6.0
 end if
 if (xsp.eq.3) then
      m1=dmortc*6.0
+end if
+if (xsp.eq.6) then
+     m1=dmortc*2.8 ! SEDAR 70 estimated a natural mortality of 0.28/y average across ages for greater amberjack - KM 12/23
 end if
 
 distmorth=m1*tt1
@@ -1085,8 +1094,8 @@ USE allvar
            dist=SQRT(opp**2 + adj**2)  ! distance in meters of the line from current location to the center of the i-th rig cell
             IF(dist.lt.olddistpyr)then ! see if shortest so far in search through the list of rig cells
                xdistnearpyr(ifish)=dist  ! actual distance of shortest distance
-               xcolnearpyr(ifish)=zrigcol(k)  ! column number of the rig cell
-               xrownearpyr(ifish)=zrigrow(k)   ! row number of the rig cell
+               xcolnearpyr(ifish)=pyrcol(k)  ! column number of the rig cell
+               xrownearpyr(ifish)=pyrrow(k)   ! row number of the rig cell
                olddistpyr=dist  ! replace shortest so far with the new shortest vaale
            endif
 
@@ -1100,20 +1109,50 @@ USE allvar
        END do
 
 end subroutine
-!----------------------------------------------------
+!-----------------------------------------------------*
 
-!DEL - commented out subroutine onrig and substituted the onrig(kk) version.  So that xrig can be updated in the initial conditions and within the loop
-!CP2 --- removed and placed at the bottom of the program with full remarks - !MDC - 2apr2009
+subroutine nearnat
+USE allvar
+! determine nearest rig cell for each fish for each hour
+
+  colnearnat=0  ! start at zero
+  rownearnat=0
+
+  olddistnat=nrow*ncol*cellsize  ! largest distance that is possible to start with
+       do k=1,numnatcells  ! search over the list of rig cells
+           xside=(natcol(k))*cellsize + cellsize/2.0  ! assume rigs at center of cell - meters from left edge of grid
+           yside=(natrow(k))*cellsize + cellsize/2.0  ! meters from bottom of grid
+           opp=(yside-xyloc(ifish))  ! meters of vertical line from current location to cetner of k-th rig cell
+           adj=(xside-xxloc(ifish))  ! meters of horizontal line from current location to center of k-th rig cell
+           dist=SQRT(opp**2 + adj**2)  ! distance in meters of the line from current location to the center of the i-th rig cell
+            IF(dist.lt.olddistnat)then ! see if shortest so far in search through the list of rig cells
+               xdistnearnat(ifish)=dist  ! actual distance of shortest distance
+               xcolnearnat(ifish)=natcol(k)  ! column number of the rig cell
+               xrownearnat(ifish)=natrow(k)   ! row number of the rig cell
+               olddistnat=dist  ! replace shortest so far with the new shortest vaale
+           endif
+
+!       if (ifish.eq.23.and.iyear.eq.1.and.iday.ge.300) then
+!         WRITE(41,1060)iyear,iday,ihour,inight,ifish,xsp,k,xycell(ifish),xxcell(ifish),xcolnear(ifish),xrownear(ifish),dist,&
+!                       & xdistnear(ifish),oldist
+!         1060   FORMAT(1x,11(i6,1x),3(e12.2,1x)) !replicate once, 11 values, i6 - create a column where it'll take integers of 6 places, then create 3 that are out to 12 decimals. so basically put you are writing out the file and formatting it with the 1060 format from above
+!       end if
+
+       END do
+
+end subroutine
+
+!----------------------------------------------------
 
 !*FIX - inserted code to make call to onrig flexible.  Initialization and recruitment was problematic  MDC 2apr2009
 
 subroutine onrig(kk)
 USE allvar
 ! determine if individual is on a rig cell this hour
-     xrig(kk)=0  ! assume off rig so can call from movenight and moveday
+     xhab(kk)=0  ! assume off rig so can call from movenight and moveday
        do k=1,nrigs   ! search list of rigs
           IF(xxcell(kk).eq.zrigcol(k).and.xycell(kk).eq.zrigrow(k))then   ! column and row correspond to a rig cell
-             xrig(kk)=1   ! switch value of flag to denote now on a rig cell
+             xhab(kk)=1   ! switch value of flag to denote now on a rig cell
 ! *NEW - Inserted IF THEN statement below.  Otherwise no original code was modified or deleted.
 ! In the original code when the fish is on a rig in the daytime, the fish is placed at center
 ! During the evening the fish does not get relocated to the center of the rig cell.  MDC 17March09
@@ -1125,7 +1164,7 @@ USE allvar
           endif                                                  
        END do
 
-if (inight.eq.2.and.xrig(kk).eq.1) then
+if (inight.eq.2.and.xhab(kk).eq.1) then
     if (xxcell(kk).eq.xxlastrig(kk).and.xycell(kk).eq.xylastrig(kk)) then
       xuniqrig(kk)=xuniqrig(kk)
   !    print *, 'no new rig', xuniqrig(kk)
@@ -1143,6 +1182,37 @@ end if
 end subroutine onrig
 
 !----------------------------------------------------
+! didn't include last nat and unique nat because we don't care about that. just want to make sure that they know where the nat is and that they are generally staying there
+subroutine onnat(kk)
+USE allvar
+! determine if individual is on a rig cell this hour
+     xhab(kk)=0  ! assume off rig so can call from movenight and moveday
+       do k=1,numnatcells   ! search list of rigs
+          IF(xxcell(kk).eq.natcol(k).and.xycell(kk).eq.natrow(k))then   ! column and row correspond to a nat cell
+             xhab(kk)=3   ! switch value of flag to denote now on a nat cell
+             IF(inight.eq.2)then  !move fish to the center of the cell during the day
+             xxloc(kk)=(natcol(k))*cellsize + cellsize/2.0   ! put fish who reach a nat during daytime at center of nat cell
+             xyloc(kk)=(natrow(k))*cellsize + cellsize/2.0
+             END IF
+          END IF                                                  
+       END do
+if (inight.eq.2.and.xhab(kk).eq.3) then
+    if (xxcell(kk).eq.xxlastnat(kk).and.xycell(kk).eq.xylastnat(kk)) then
+      xuniqnat(kk)=xuniqnat(kk)
+  !    print *, 'no new rig', xuniqrig(kk)
+  !    pause
+    else
+      xuniqnat(kk)=xuniqnat(kk)+1
+   !   print *, 'new rig added', xuniqrig(kk)
+   !   pause
+    end if
+
+    xxlastnat(kk)=xxcell(kk)
+    xylastnat(kk)=xycell(kk)
+end if
+end subroutine onnat
+
+!----------------------------------------------------
 
 !DEL - commented out subroutine onrig and substituted the onrig(kk) version.  So that xrig can be updated in the initial conditions and within the loop
 !CP2 --- removed and placed at the bottom of the program with full remarks - !MDC - 2apr2009
@@ -1152,22 +1222,19 @@ end subroutine onrig
 subroutine onpyr(kk)
 USE allvar
 ! determine if individual is on a rig cell this hour
-     xpyr(kk)=0  ! assume off pyr so can call from movenight and moveday
+     xhab(kk)=0  ! assume off pyr so can call from movenight and moveday
        do k=1,npyr   ! search list of rigs
-          IF(xxcell(kk).eq.pyrcol(k).and.xycell(kk).eq.pyrrow(k))then   ! column and row correspond to a rig cell
-             xpyr(kk)=1   ! switch value of flag to denote now on a rig cell
-! *NEW - Inserted IF THEN statement below.  Otherwise no original code was modified or deleted.
-! In the original code when the fish is on a rig in the daytime, the fish is placed at center
-! During the evening the fish does not get relocated to the center of the rig cell.  MDC 17March09
+          IF(xxcell(kk).eq.pyrcol(k).and.xycell(kk).eq.pyrrow(k))then   ! column and row correspond to a pyr cell
+             xhab(kk)=2   ! switch value of flag to denote now on a pyr cell
 
              IF(inight.eq.2)then  !*NEW - see note above
-             xxloc(kk)=(pyrcol(k))*cellsize + cellsize/2.0   ! put fish who reach a rig during daytime at center of rig cell
+             xxloc(kk)=(pyrcol(k))*cellsize + cellsize/2.0   ! put fish who reach a pyr during daytime at center of pyr cell
              xyloc(kk)=(pyrrow(k))*cellsize + cellsize/2.0
              END if
           endif                                                  
        END do
 
-if (inight.eq.2.and.xpyr(kk).eq.1) then
+if (inight.eq.2.and.xhab(kk).eq.2) then
     if (xxcell(kk).eq.xxlastpyr(kk).and.xycell(kk).eq.xylastpyr(kk)) then
       xuniqpyr(kk)=xuniqpyr(kk)
     else
@@ -1178,7 +1245,7 @@ if (inight.eq.2.and.xpyr(kk).eq.1) then
     xylastpyr(kk)=xycell(kk)
 end if
 
-end subroutine 
+end subroutine onpyr
 
 !---------------------------------------------------------------------
 subroutine initfish(xsp)
@@ -1211,7 +1278,7 @@ do i=1,inyears
 end do
 
 do i=1,inyears
-  do j=1,imodf
+ do j=1,imodf
     jj=(i-1)*imodf+j+sumfish    ! this jj continues over the three species so individuals of all species are in a single list
     xxcell(jj)=INT(ran1(idum)*ncol)+1    ! random column
     xycell(jj)=INT(ran1(idum)*nrow)+1     ! random row
@@ -1233,7 +1300,8 @@ do i=1,inyears
     !xrig(jj)=0             ! start with xrig equal zero - overwritten if actually started on a rig cell.  See *FIX below
     !*FIX - put in onrig(jj) so that onrig can be used in initfish, the loop and the call AGE  MDC 2apr2009
     call onrig(jj)
-
+    call onpyr(jj)
+    call onnat(jj)
 
     xage(jj)=i             ! age is i - 1,2,3,...
      IF(xage(jj).le.2)xstage(jj)=1  ! assign stage value based on age
@@ -1481,15 +1549,23 @@ REAL*8 goxcon
 
   resp = ra(xsp)*xweight(ifish)**(rb(xsp)) * grtemp * act(xsp) * goxcon !3.9686   ! g prey/g fish, x 2 is activity multipler, 0.7938 is g oxygen/g prey
 
-     IF(inight.eq.2.and.xrig(ifish).eq.0)then  ! daylight hours and not on a rig cell
+  ! These are equations for Yellowtail Kingfish from Brodie et al. 2016
+  IF (xsp.eq.6) then
+     ! this equation below is probably wrong and should be equal to gctemp from the original model with the optimal temp for this species included
+     grtemp = EXP((LOG(q10(xsp))/10)*watertemp ! the temp in this equation should be the actual temp of the model
+
+     ! Respiration equation for yellowtail kingfish
+     resp = ra(xsp) * (xweight**(rb(xsp))) * grtemp * act(xsp) ! act for yellowtail kingfish is the same as RS. Might need to include occ (goxcon) in this equation to be consistent with other species
+  END IF
+    IF(inight.eq.2.and.xhab(ifish).eq.0)then  ! daylight hours and not on a rig, pyr, or nat cell
        !CHANGE - original conditions  MDC 6may09
        IF(xspecies(ifish).eq.1.or.xspecies(ifish).eq.3)resp=resp*1.3  ! 30% increase in respiration for snapper and grouper
-       IF(xspecies(ifish).eq.2.or.xspecies(ifish).eq.6)resp=resp*1.3   ! 30% increase for grunts
+       IF(xspecies(ifish).eq.2.or.xspecies(ifish).eq.6)resp=resp*1.3   ! 30% increase for grunts and greater amberjack
 
        !NEW - use higher respiration penalty for grunts  MDC 6may09
        !IF(xspecies(ifish).eq.1.or.xspecies(ifish).eq.3)resp=resp*1.1  ! 30% increase in respiration for snapper and grouper
        !IF(xspecies(ifish).eq.2)resp=resp*1.6   ! 60% increase for grunts
-     endif
+    endif
 
 end subroutine respiration
 
@@ -1546,7 +1622,7 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
        ic = colk(icell)     ! ic is the column number of the ii-th cell in the list
        jr = rowk(icell)       ! jr is the row number of the ii-th cells in the list
 
-       !*NEW MDC, only call growth to move species 1,2,3
+       !only call growth to move species 1,2,3, and 6
        if (xsp.le.3.and.xsp.eq.6) then
         call growth(2,ic,jr)   ! the 2 tells growth subroutine that this call is not for real but for evaluating cells for movement
          IF(ihour.le.2)THEN !first 2 hours off the rig choose a random direction to swim
@@ -1644,16 +1720,26 @@ REAL*8 eucdist     ! euclidean distance formula to calculate distance actually m
     xxcell(ifish) = INT(xxloc(ifish)/cellsize) + 1 ! now must update cell locations because xdist or ydist could have
     xycell(ifish) = INT(xyloc(ifish)/cellsize) + 1 ! changed enough to put you into a different cell
 
+    IF(habtype = 1) THEN
     xcenter = (xxlastrig(ifish)-1)*cellsize + cellsize/2.0   ! this is the column location in meters from the lower left corner (0,0)
     ycenter = (xylastrig(ifish)-1)*cellsize + cellsize/2.0   ! this is the row location in meters from the lower left corner
+    ELSE IF(habtype = 2) THEN
+    xcenter = (xxlastpyr(ifish)-1)*cellsize + cellsize/2.0   ! this is the column location in meters from the lower left corner (0,0)
+    ycenter = (xylastpyr(ifish)-1)*cellsize + cellsize/2.0   ! this is the row location in meters from the lower left corner
+    ELSE IF(habtype = 3) THEN
+    xcenter = (xxlastnat(ifish)-1)*cellsize + cellsize/2.0   ! this is the column location in meters from the lower left corner (0,0)
+    ycenter = (xylastnat(ifish)-1)*cellsize + cellsize/2.0   ! this is the row location in meters from the lower left corner
+
     adj=(xcenter-xxloc(ifish))       ! this is the horizontal line from the current location to the center in meters
     opp=(ycenter-xyloc(ifish))       ! this is the length of the vertical line from the current location in meters to the center
 
-    xdistcent(ifish)=sqrt(adj**2 + opp**2)  ! distance from center of previous daytime rig cell (m)
+    xdistcent(ifish)=sqrt(adj**2 + opp**2)  ! distance from center of previous daytime rig, pyr, or nat cell (m)
 
     if(jday.eq.182.and.xage(ifish).eq.1)xdistcent(ifish)=0.0
 
     call onrig(ifish)  ! check and see if fish is currently on a rig
+    call onpyr(ifish)
+    call onnat(ifish)
 
 end subroutine movenight
 
@@ -1676,14 +1762,48 @@ REAL*8 eucdist
   icol=xxcell(ifish)
   jrow=xycell(ifish)
 
-  call nearrig   ! determine the distance in meters of a line from the current location to the center of the
-                 ! nearest rig cell, and the column and row of the nearest rig cell
+  call nearrig   ! determine the distance in meters of a line from the current location to the center of the closest rig cell
+  call nearpyr   ! determine the distance to the center of the closest pyramid cell
+  call nearnat   ! determine the distance to the center of the closest nat cell
 
-  dist1=xdistnear(ifish)   ! shorthand distance in meters to nearest rig cell
-
-  xcenter = (xcolnear(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
-  ycenter = (xrownear(ifish)-1)*cellsize + cellsize/2.0 ! y distance
-
+  dist1=xdistnearrig(ifish)   ! shorthand distance in meters to nearest rig cell
+  dist2=xdistnearpyr(ifish)   ! shorthand distance to nearest pyr cell
+  dist3=xdistnearnat(ifish)   ! shorthand distance to nearest nat cell
+  distrand = rand1(idum)
+! have Matt check this KM 1-25-22. Making sure that all of my bases are covered if any of the fish happen to be perfectly between any two habitats. I am making the assumption that a fish will not be perfectly between all 3 hab types
+  IF(dist1.lt.dist2.and.dist3) THEN
+  xcenter = (xcolnearrig(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearrig(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 1
+  ELSE IF(dist2.lt.dist1.and.dist3) THEN
+  xcenter = (xcolnearpyr(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearpyr(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 2
+  ELSE IF(dist3.lt.dist2.and.dist1) THEN
+  xcenter = (xcolnearnat(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearnat(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 3
+  ELSE IF(dist1.eq.dist2.or.dist3.and.distrand.lt.0.5) THEN
+  xcenter = (xcolnearrig(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearrig(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 1
+  ELSE IF(dist2.eq.dist1.or.dist3.and.distrand.ge.0.5) THEN
+  xcenter = (xcolnearpyr(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearpyr(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 2
+  ELSE IF(dist3.eq.dist2.and.distrand.lt.0.5) THEN
+  xcenter = (xcolnearnat(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearnat(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 3
+  ELSE IF(dist3.eq.dist1.and.distrand.ge.0.5) THEN
+  xcenter = (xcolnearnat(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
+  ycenter = (xrownearnat(ifish)-1)*cellsize + cellsize/2.0 ! y distance
+  habtype = 3
+  ELSE
+  PRINT *, "Have a fish that is equidistant between multiple habitat types. Need to add more scenarios in the IF statement in subroutine moveday()"
+  STOP
+  END IF
+  
   opp=(ycenter-xyloc(ifish))  ! vertical line in meters from current location to center of nearest rig cell
   adj=(xcenter-xxloc(ifish))  ! horizontal line
 
@@ -1702,6 +1822,7 @@ REAL*8 eucdist
   t1=1.0               ! species specific multiplier
   IF(xsp.eq.2)t1=0.8   ! 0.8 home slow
   IF(xsp.eq.3)t1=1.0   ! 1.0 home same
+  IF(xsp.eq.6)t1=1.5   ! GA move fast - this should be same as movenight()
 
   IF(ran1(idum).lt.0.5)then
       tt2=-1.0
@@ -1739,7 +1860,8 @@ REAL*8 eucdist
     xycell(ifish) = INT(xyloc(ifish)/cellsize) + 1
 
     call onrig(ifish)  ! update onrig status
-
+    call onpyr(ifish)  ! update onpyr status
+    call onnat(ifish)  ! update onnat status
 end subroutine moveday
 
 !**********************************************************
@@ -1763,7 +1885,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,
 
    !extra predation mortality scaled by their current distance from nearest rig cell, unless located on rig cell
 !   IF(inight.eq.2.and.xrig(ifish).eq.0)then   ! it is daylight and not on rig yet
-   IF(xrig(ifish).eq.0)then   ! off rig
+   IF(xhab(ifish).eq.0)then   ! off rig, pyr, or nat
      m2=distmorth(xxcell(ifish),xycell(ifish)) !calculate additional natural mortality based on distance from closest rig
    else   ! on rig
 !     m2=distmorth(xxcell(ifish),xycell(ifish)) !no refuge effect - or turn mortality on even though on a rig
@@ -1799,7 +1921,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,
    !additional predation mortality scaled by  predator ratio above
    !refuge scenario
 
-   if(inight.eq.2.and.xrig(ifish).eq.0)then  !daytime/off rig, apply mortality
+   if(inight.eq.2.and.xhab(ifish).eq.0)then  !daytime/off rig, apply mortality
      m3a = pmorth*eqn8090(blueratio )    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
      m3b = pmorth*eqn8090(jackratio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
      m3c = pmorth*eqn8090(garatio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
@@ -1811,7 +1933,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,
 
    if(m3.lt.0)m3=0.0  ! constrain the function to 0 ... otherwise you get increased survival
 
-   if(xrig(ifish).eq.0.and.xage(ifish).ge.0)then    !on rig status to toggle refuge effect, species and age specific. Can change this to reflect Gallaway 2009 - might be age structure to fmort - KM
+   if(xhab(ifish).eq.0.and.xage(ifish).ge.0)then    !on rig status to toggle refuge effect, species and age specific. Can change this to reflect Gallaway 2009 - might be age structure to fmort - KM
        m4=fmorth  !off rig fmorth applied
    else
 !       m4=fmorth ! no refuge - fmorth applied on rig
@@ -1839,7 +1961,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,
    if(mod(iyear,10).eq.0.and.iday.lt.20.and.ifish.eq.100)then
      m1=m1*365*24; m2=m2*365*24; m3=m3*365*24; m4=m4*365*24; z=z*365*24
 
-      WRITE(42,1061)cumhours,iyear,iday,ihour,inight,ifish,xsp,xrig(ifish),m1,distnear(xxcell(ifish),xycell(ifish)),&
+      WRITE(42,1061)cumhours,iyear,iday,ihour,inight,ifish,xsp,xhab(ifish),m1,distnear(xxcell(ifish),xycell(ifish)),&
       &             m2, blueratio, jackratio, garatio, m3, m4, z, xcmort(ifish)
       1061  FORMAT(1x,e12.5,7(i6,1x),9(f14.9,1x))
 
@@ -1849,7 +1971,7 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,
    if(mod(iyear,10).eq.0.and.iday.le.20.and.ihour.eq.24)then
     xcmort(ifish) = xcmort(ifish)*365
 
-      WRITE(43,1062)cumhours,iyear,iday,ihour,inight,ifish,xsp,xrig(ifish),xcmort(ifish)
+      WRITE(43,1062)cumhours,iyear,iday,ihour,inight,ifish,xsp,xhab(ifish),xcmort(ifish)
       1062  FORMAT(1x,e12.5,7(i6,1x),f14.9)
 
     xcmort(ifish) = xcmort(ifish)/365
@@ -2242,6 +2364,10 @@ DO i = bffr,nrow+bffr
 
         pyrcol(pyrcnt)=j
         pyrrow(pyrcnt)=i
+        IF(zhab(pycol(pyrcnt),pyrrow(pyrcnt)).ne.1) THEN
+           PRINT *, "Trying to place pyramid field over natural bank"
+           STOP
+        END IF
         zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
 
         if (pyrcnt.eq.npyr)GO TO 678
@@ -2303,6 +2429,10 @@ npyrinclust = npyr/numclust1
                     IF (MOD(m-pyrbffr,pyrintvl).eq.0.and.MOD(l-pyrbffr,pyrintvl).eq.0) then
                        pyrcol(pyrcnt)=m
                        pyrrow(pyrcnt)=l
+                       IF(zhab(pycol(pyrcnt),pyrrow(pyrcnt)).ne.1) THEN
+                          PRINT *, "Trying to place pyramid field over natural bank"
+                          STOP
+                       END IF
                        zhab(pyrcol(pyrcnt), pyrrow(pyrcnt))=2
                        pyrcnt = pyrcnt + 1
                        IF (pyrcnt.gt.8)GO TO 678
@@ -2399,6 +2529,10 @@ END IF
 !           IF (MOD(k-bffr,intvl).eq.0.and.MOD(j-bffr,intvl).eq.0) then
               thispyrcol(pyrcnt)=k
               thispyrrow(pyrcnt)=j
+              IF(zhab(thispycol(pyrcnt),thispyrrow(pyrcnt)).ne.1) THEN
+                   PRINT *, "Trying to place pyramid field over natural bank"
+                   STOP
+              END IF
               zhab(thispyrcol(pyrcnt), thispyrrow(pyrcnt))=2
               pyrcnt = pyrcnt + 1
               IF (pyrcnt.gt.4)GO TO 678
