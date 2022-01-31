@@ -21,7 +21,9 @@ MODULE allvar
   REAL*8 xcmort(itotf)             ! daily cumulative mortality experienced
   REAL*8 grow                         ! g ww pred/g wwpred/hour
   INTEGER ifish, inight, ihour        ! id 1=night and 2=day  hours from 1 to 24
-  integer iday, jday, iyear           ! model day  julian day  and year counter
+  INTEGER iday, jday, iyear           ! model day  julian day  and year counter
+  INTEGER sunrise, sunset             ! for eqn9001 - and getting the number of sunlight hours in a day
+  REAL*8 light_hours                  ! number of sunlight hours in a day
   INTEGER nrigs, npyr, numnatcells    !  number of cells that have rigs, pyramids, and nat banks
   REAL*8  cellsize                    ! side of cells in meters
   INTEGER zhab(ncol,nrow)             ! 0 = rig cell.  1 = benthic cell. 2 = pyramid cell. 3 - natural bank - used to multiply by prey densities
@@ -633,12 +635,18 @@ if (iyear.eq.5.and.newrigs.gt.0)call addrig   ! add newrigs at year 5
       do 300 ihour=1,24   ! loop over hours
           cumhours = (iyear-1)*365*24 + (iday-1)*24 + ihour   ! cumulative hours for plotting
           cumeat=0.0   ! zero matrix for every hour since prey is updated after each hour
-         IF(ihour.le.12)then
-             inight=1    ! this hour is nighttime (hours 1 to 12)
-         else
-             inight=2    ! this hour is day time  (hours 13 to 24)
-         endif
-
+          ! Determining the number of light hours in a day. Equation is based off of https://gml.noaa.gov/grad/solcalc/calcdetails.html   KM 1-28-22
+          light_hours = eqn9001(jday)
+          sunrise = 6
+          sunset = sunrise + (light_hours/24)
+          IF(ihour.ge.sunrise.and.ihour.lt.sunset)THEN
+             inight=0
+             ELSE
+             inight=1
+          END IF
+      WRITE(12,1007)cumdays,iyear,iday,jday,ihour,watertemp,inight
+ 1007 FORMAT(1x,f12.4,1x,3(i7,1x),f12.4)
+ 
          do 400 ifish=1,itotf    ! loop over all fish
            IF(xalive(ifish).eq.0)then   ! if alive then continue
              IF(inight.eq.1)then   ! if nighttime then forage around the rig- grow and die every hour
@@ -2364,7 +2372,7 @@ DO i = bffr,nrow+bffr
 
         pyrcol(pyrcnt)=j
         pyrrow(pyrcnt)=i
-        IF(zhab(pycol(pyrcnt),pyrrow(pyrcnt)).ne.1) THEN
+        IF(zhab(pyrcol(pyrcnt),pyrrow(pyrcnt)).ne.1) THEN
            PRINT *, "Trying to place pyramid field over natural bank"
            STOP
         END IF
@@ -2429,7 +2437,7 @@ npyrinclust = npyr/numclust1
                     IF (MOD(m-pyrbffr,pyrintvl).eq.0.and.MOD(l-pyrbffr,pyrintvl).eq.0) then
                        pyrcol(pyrcnt)=m
                        pyrrow(pyrcnt)=l
-                       IF(zhab(pycol(pyrcnt),pyrrow(pyrcnt)).ne.1) THEN
+                       IF(zhab(pyrcol(pyrcnt),pyrrow(pyrcnt)).ne.1) THEN
                           PRINT *, "Trying to place pyramid field over natural bank"
                           STOP
                        END IF
@@ -2529,7 +2537,7 @@ END IF
 !           IF (MOD(k-bffr,intvl).eq.0.and.MOD(j-bffr,intvl).eq.0) then
               thispyrcol(pyrcnt)=k
               thispyrrow(pyrcnt)=j
-              IF(zhab(thispycol(pyrcnt),thispyrrow(pyrcnt)).ne.1) THEN
+              IF(zhab(thispyrcol(pyrcnt),thispyrrow(pyrcnt)).ne.1) THEN
                    PRINT *, "Trying to place pyramid field over natural bank"
                    STOP
               END IF
@@ -2942,6 +2950,15 @@ REAL*8 FUNCTION eqn8003(x)
   eqn8003=y
   RETURN
 END
+!------------------------------------------------------*
+! Function where y represents the number of hours of sunlight in a day as a function of day. Where x=0 is Jan 1 and x=365 is Dec 31
+REAL*8 FUNCTION eqn9001(x)
+  REAL*8 x,y
+  y=(-0.00000000000274*(x**6))+(0.00000000286590*(x**5)-(0.00000092186564*(x**4)+(0.00006351930143*(x**3)+(0.00720366012820*(x**2)+(0.59679045015946*(x))+631.13319240370700
+  eqn9001=y
+  RETURN
+END
+ 
 !--------------------------------------------
 SUBROUTINE INDEXXold(N,ARRIN,INDX)
       real*8 ARRIN(N)
