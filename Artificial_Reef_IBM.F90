@@ -522,6 +522,7 @@ open(UNIT=45,FILE='bghga1.out',STATUS='unknown')    ! 1012
 open(UNIT=46,FILE='natreef.dat',STATUS='old')   ! 2001
 open(UNIT=47,FILE='pyrreef.dat',STATUS='old')   ! 2002
 open(UNIT=48,FILE='gawt_age1.out',STATUS='unknown')  ! 2003
+open(UNIT=49,FILE='gctemp_check.out',STATUS='unknown') ! 2004
 !NEW - READ statement to read in model options specied from an input file and used in a batch run  MDC 16apr09
 !READ (UNIT = 27, FMT = 1051) totpop(1), ipinfish, totpop(2), icroaker, totpop(3),ibluefish, totpop(4),ijack, meth, nrigs, &
 !                           & intvl, bffr
@@ -587,7 +588,7 @@ end do
  PRINT *,'enter total pop of red snapper on each rig in numbers'  ! number of age-1 individual snapper in population
  !READ *,totpop(1)
  totpop(1)=1000
-
+ 
  PRINT *,'enter 0 for no pinfish and 1 for pinfish'  ! 1 means the second species is grunts
  !READ *,ipinfish
  ipinfish=1
@@ -675,7 +676,7 @@ do 100 iyear=1,10   ! loop over years
       xdailymove=0.0
       xcmort=0.0
 
-      light_hours = eqn9001(dfloat(jday)) ! determining the number of light hours in a day throughout the year 
+      
 
       watertemp=eqn8003(dfloat(jday))   ! cal function to get water temperature for today
 
@@ -684,7 +685,7 @@ do 100 iyear=1,10   ! loop over years
       b=37.098+(watertemp-21.535396)
       do i=1,ncol
          do j=1,nrow
-      depth(i)=5*i+10
+      depth(i)=1*i+10
       watertempbycol(i,j)=-3.801*LOG(depth(i))+b
          end do
       end do
@@ -699,6 +700,7 @@ do 100 iyear=1,10   ! loop over years
           cumhours = (iyear-1)*365*24 + (iday-1)*24 + ihour   ! cumulative hours for plotting
           cumeat=0.0   ! zero matrix for every hour since prey is updated after each hour
           ! Determining the number of light hours in a day. Equation is based off of https://gml.noaa.gov/grad/solcalc/calcdetails.html   KM 1-28-22
+          light_hours = eqn9001(dfloat(jday)) ! determining the number of light hours in a day throughout the year 
           IF(ihour.le.light_hours)THEN
              inight=2
              ELSE
@@ -711,51 +713,51 @@ do 100 iyear=1,10   ! loop over years
          do 400 ifish=1,itotf    ! loop over all fish
            !IF(xspecies.eq.1) nhood=eqn9002(dfloat(xweight)) ! equation for the change in foraging area with weight
            IF(xalive(ifish).eq.0)then   ! if alive then continue
-                 wtemp(ifish)=watertempbycol(xxcell(ifish),xycell(ifish))
+             wtemp(ifish)=watertempbycol(xxcell(ifish),xycell(ifish))
+                 
              IF(inight.eq.2)then   ! if day then forage
               call moveday      ! move hourly during day
+             if (xspecies(ifish).ne.5) then  ! no bioenergetics for jacks strictly movement
+                call growth(1,xxcell(ifish),xycell(ifish))   ! grow the individual in location from last hour
+
+                  IF(xspecies(ifish).eq.4)grow=0.0  ! bluefish don't grow but they do consume/compete
+                 dailyc(ifish)=dailyc(ifish)+totcon(ifish)    ! g prey/g pred summed over hours in a day
+                 dailyp(ifish)=dailyc(ifish)/gcmax
+                 !                                                 (g prey/g fish)*(g fish/ind)*(num of pop ind)
+                 growthp(xspecies(ifish)) = growthp(xspecies(ifish)) + grow*xweight(ifish)*xworth(ifish) ! growth production
+
+                 xweight(ifish)=xweight(ifish)+grow*xweight(ifish) ! update body weight (g ww per ind) of model individual     
+                
+                 do k=1,nprey   ! loop over prey types
+                   xeat(ifish,k)=geat(k) ! store g prey/g pred eaten per hour of prey type k for individual ifish
+                   cumeat(xxcell(ifish),xycell(ifish),k)=cumeat(xxcell(ifish),xycell(ifish),k)+&
+                     & geat(k)*xweight(ifish)*xworth(ifish)   ! g prey/g pred/h to g prey by the population worth of all species
+                 end do   
+                 
+                 IF(xweight(ifish).lt.1.0)then   ! if less than one gram wet weight, then starved
+                  xweight(ifish)=1.0
+                  xalive(ifish)=2    ! starved flag
+                 endif !end if for xweight.lt.1.0              
+              endif  ! for xsp ne 5
+            endif  ! for inight=2
+
+             if(inight.eq.1)then  ! if night then move towards a reef cell 
               if(xspecies(ifish).le.3.or.xspecies(ifish).eq.6) then
-               call respiration   ! respiration for this hour
+               if(xhab(ifish).eq.1.and.xspecies(ifish).le.3) call movenight    ! move to nearest rig, pyr, or nat cell - no growth but mort does occurs (no end if statement needed in this form)
+                    call respiration   ! respiration for this hour
                 avgden=(ener(1)+ener(2)+ener(3)+ener(4)+ener(5))/5.0   ! default if nothing eaten, otherwise would get zero
 !               g ww/ind    = g ww/ind  -   g equivalents of prey respired in an hour * (cal/g prey)/(cal/g pred) * g ww/ind
                 xweight(ifish)=xweight(ifish)-(resp/24.0)*(avgden/en(xspecies(ifish)))*xweight(ifish) ! decrement weight for hourly respiration
 !               g ww          =    g ww - loss due to respiration but times pop worth of each individual
                 growthp(xspecies(ifish))=growthp(xspecies(ifish))-(resp/24.0)*avgden/en(xspecies(ifish))*xweight(ifish)*xworth(ifish)
 
-                IF(xhab(ifish).eq.1)xriskhr(ifish)=xriskhr(ifish)+1   ! number of hours off rig during nighttime
-
-           end if  ! for xsp le 3 or 6
-         endif  ! for inight=2
-
-             if(inight.eq.1)then  ! if night then move towards a reef cell 
-              if(xspecies(ifish).le.3) then
-               if(xhab(ifish).eq.1)call movenight    ! move to nearest rig, pyr, or nat cell - no growth but mort does occurs (no end if statement needed in this form)
-              endif ! ifish.le.3
+                IF(xhab(ifish).eq.1.and.xspecies(ifish).le.3)xriskhr(ifish)=xriskhr(ifish)+1   ! number of hours off rig during nighttime
+              end if ! ifish.le.3
               !bluefish & jacks are going to move the same regardless of time of day, move according to biomass of species 1-3
               !bluefish & jacks do not respire
-              IF(xspecies(ifish).ge.4)call moveday
+              IF(xspecies(ifish).ge.4) call moveday
 
-              if (xspecies(ifish).ne.5) then  ! no bioenergetics for jacks strictly movement
-                call growth(1,xxcell(ifish),xycell(ifish))   ! grow the individual in location from last hour
-                 IF(xspecies(ifish).eq.4)grow=0.0  ! bluefish don't grow but they do consume/compete
-                 dailyc(ifish)=dailyc(ifish)+totcon(ifish)    ! g prey/g pred summed over hours in a day
-                 dailyp(ifish)=dailyc(ifish)/gcmax
-                 !                                                 (g prey/g fish)*(g fish/ind)*(num of pop ind)
-                 growthp(xspecies(ifish)) = growthp(xspecies(ifish)) + grow*xweight(ifish)*xworth(ifish) ! growth production
-
-                 xweight(ifish)=xweight(ifish)+grow*xweight(ifish) ! update body weight (g ww per ind) of model individual
-
-                 do k=1,nprey   ! loop over prey types
-                   xeat(ifish,k)=geat(k) ! store g prey/g pred eaten per hour of prey type k for individual ifish
-                   cumeat(xxcell(ifish),xycell(ifish),k)=cumeat(xxcell(ifish),xycell(ifish),k)+&
-                     & geat(k)*xweight(ifish)*xworth(ifish)   ! g prey/g pred/h to g prey by the population worth of all species
-                 end do
-                 IF(xweight(ifish).lt.1.0)then   ! if less than one gram wet weight, then starved
-                  xweight(ifish)=1.0
-                  xalive(ifish)=1    ! starved flag
-               endif !end if for xweight.lt.1.0
-            endif ! for xsp ne 5
-           endif ! for inight=1
+            endif ! for inight=1
 
              IF(iyear.eq.9.AND.(iday.gt.200.and.iday.lt.220))then
                  WRITE(18,1050)iyear,iday,ihour,inight,ifish,xspecies(ifish),xhab(ifish),xxcell(ifish),xycell(ifish),&
@@ -770,11 +772,16 @@ do 100 iyear=1,10   ! loop over years
 
            IF(iout.eq.1)then
            !changed year to 5 from 10 .... 23 june 2009.  Needs to be changed back with full model.
-           IF(MOD(iyear,5).eq.0.AND.MOD(ifish,100).eq.0.and.(iday.eq.10.or.iday.eq.11.or.iday.eq.12.or.iday.eq.13))then
+            IF(iyear.ge.1.and.(iday.eq.1.or.iday.eq.182).and.MOD(ifish,100).eq.0)then
+      !     IF(MOD(iyear,5).eq.0.AND.MOD(ifish,100).eq.0.and.(iday.eq.10.or.iday.eq.11.or.iday.eq.12.or.iday.eq.13))then
            !IF(iyear.eq.2.AND.MOD(ifish,100).eq.0.and.(iday.eq.10.or.iday.eq.11.or.iday.eq.12.or.iday.eq.13))then
-
+                
             WRITE(10,1000)cumhours,iyear,iday,jday,ihour,inight,xspecies(ifish),ifish,xalive(ifish),xxcell(ifish),&
                  &   xycell(ifish),xxloc(ifish),xyloc(ifish),xhab(ifish),xweight(ifish),(geat(kk),kk=1,nprey)  ! geat is g prey/g pred/hour
+            
+      !      WRITE(10,1000)cumhours,iyear,iday,jday,ihour,inight,xspecies(ifish),ifish,xalive(ifish),xxcell(ifish),&
+      !           &   xycell(ifish),xxloc(ifish),xyloc(ifish),xhab(ifish),xweight(ifish),(geat(kk),kk=1,nprey)  ! geat is g prey/g pred/hour
+            
            endif !end if write statement unit 10
            1000      FORMAT(1x,e12.3,1x,6(i5,1x),i10,1x,3(i4,1x),1x,2(f12.4,1x),i3,1x,10(f12.4,1x))
 
@@ -787,7 +794,13 @@ do 100 iyear=1,10   ! loop over years
            IF(iday.eq.1.and.xspecies(ifish).eq.6) THEN
               WRITE(48,2003) iyear,iday,xage(ifish),xweight(ifish),xalive(ifish)
            2003 FORMAT(1x,3(i5,1x),f12.4,1x,i5,1x)
-           END IF
+           END IF !for GA weights
+           
+           ! problem with gctemp failing, checking to see what the numbers are like the day before and the day of the failure
+           !IF(xspecies(ifish).ne.5.and.(iday.eq.29.or.iday.eq.30).and.MOD(ifish,100).eq.0) then
+              ! WRITE(49,2004) iyear, iday, ihour, xspecies(ifish), ifish, gctemp
+!2004           FORMAT(1x,5(i5,1x),f12.4,1x)     
+              ! end if !for gctemp
            endif !iout.eq.1
 
 400      continue   ! end of loop over fish
@@ -1432,7 +1445,7 @@ REAL*8 cnum
 REAL*8 ka,kb,g1,g2,l1,l2
 REAL*8 ck1,ck4,cto,cq,ctl,cm
 INTEGER icol,jrow,iflag,xsp
-!  called every hour during nighttime hours (1 to 12)
+!  called every hour during daytime hours (1 to 12)
          
     xsp=xspecies(ifish)         ! short hand species id
     is=xage(ifish)  ! shorthand for stage value of this individual
@@ -1471,8 +1484,8 @@ INTEGER icol,jrow,iflag,xsp
        gb(4)=-0.288  !hardwired because the fields for cold water species have more coefficients to deal with
 
 
-     else
-       !wisconsin consumption equation 2 for warm water species (redsnapper, pinfish, croaker)
+     else 
+       !wisconsin consumption equation 2 for warm water species (redsnapper, pinfish, croaker, amberjack)
        v=(gtmax(xsp)-watertempbycol(icol,jrow))/(gtmax(xsp) - gtopt(xsp))
        z=(log(gtheta1(xsp)))*(gtmax(xsp) - gtopt(xsp))
        y=(log(gtheta1(xsp)))*(gtmax(xsp) - gtopt(xsp)+2)
@@ -1866,7 +1879,7 @@ REAL*8 eucdist
 ! see comments in movenight as many statements are the same as here with better comments
 
   xx=0.0; yy=0.0
-  con=0.0; geat=0.0       ! zero these because do not call growth during daylight movement
+  con=0.0; geat=0.0       ! zero these because do not call growth during nighttime movement
   xsp=xspecies(ifish)     ! shorthand for species id
   ia=xage(ifish)
   icol=xxcell(ifish)
@@ -1880,6 +1893,7 @@ REAL*8 eucdist
   dist2=xdistnearpyr(ifish)   ! shorthand distance to nearest pyr cell
   dist3=xdistnearnat(ifish)   ! shorthand distance to nearest nat cell
   distrand = ran1(idum)
+  
 ! have Matt check this KM 1-25-22. Making sure that all of my bases are covered if any of the fish happen to be perfectly between any two habitats. I am making the assumption that a fish will not be perfectly between all 3 hab types
   IF(dist1.lt.dist2.and.dist1.lt.dist3) THEN
   xcenter = (xcolnearrig(ifish)-1)*cellsize + cellsize/2.0 ! x distance in meters from lower left corner of center of nearest rig cell
@@ -1916,7 +1930,7 @@ REAL*8 eucdist
   
   opp=(ycenter-xyloc(ifish))  ! vertical line in meters from current location to center of nearest rig cell
   adj=(xcenter-xxloc(ifish))  ! horizontal line
-  if (adj.eq.0) adj = 0.0000001
+  if (adj.eq.0) adj = 0.0000001 ! had to inclue b/c getting a floating point error "divide by zero" on the next line - KM 3/11
 
   theta = atan(ABS(opp)/ABS(adj))  ! angel in radians
 
@@ -2040,11 +2054,11 @@ REAL*8 m1,distmorth,m2,blueratio, jackratio, garatio, eqn8090,m3a,m3b,m3c,m3,m4,
      m3c = pmorth*eqn8090(garatio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
      m3 = m3a + m3b + m3c
    ! no refuge effect for younger fish at natural reef (not as much high relief nat reefs on the TX coast - KM 3-11
-   ELSE IF(inight.eq.1.and.xsp.le.3.and.xhab(ifish).eq.3.and.xage(ifish).le.4)then
-     m3a = pmorth*eqn8090(blueratio )    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
-     m3b = pmorth*eqn8090(jackratio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
-     m3c = pmorth*eqn8090(garatio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
-     m3 = m3a + m3b + m3c
+  ! ELSE IF(inight.eq.1.and.xsp.le.3.and.xhab(ifish).eq.3.and.xage(ifish).le.4)then
+  !  m3a = pmorth*eqn8090(blueratio )    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
+  !   m3b = pmorth*eqn8090(jackratio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
+  !   m3c = pmorth*eqn8090(garatio)    ! predation ratio multiplier (0-1) eqn8090, multiplied by pmorth (constrained)
+  !   m3 = m3a + m3b + m3c
    else  !nighttime/on rig, daytime both, provides refuge
      m3 = 0.0
    endif
@@ -2165,7 +2179,8 @@ do i=1,ncol
         &           *(1.0-zprey(i,j,k)/kprey(i,j,k)) -cumeat(i,j,k)/(cellsize**2)  ! per m2
         IF(zprey(i,j,k).le.0.001)zprey(i,j,k)=0.001   ! do not let them go to zero
      end do
-       IF((iyear.EQ.1.or.MOD(iyear,10).eq.0).and.MOD(iday,6).eq.0.AND.(iday.gt.30.and.iday.lt.60))then
+     IF(iyear.gt.5.and.iday.eq.1)then
+!     IF((iyear.EQ.1.or.MOD(iyear,10).eq.0).and.MOD(iday,6).eq.0.AND.(iday.gt.30.and.iday.lt.60))then
        !IF((iyear.EQ.1.or.MOD(iyear,5).eq.0).and.MOD(iday,30).eq.0) then ! switched to print out 5 yr info MDC
      !  IF(MOD(iday,30).eq.0.and.ihour.eq.1)then
        WRITE(11,1006)iyear,iday,jday,ihour,inight,i,j,(zprey(i,j,k),k=1,nprey)
