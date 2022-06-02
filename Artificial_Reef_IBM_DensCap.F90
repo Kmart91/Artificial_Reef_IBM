@@ -692,7 +692,7 @@ end do
 ! Use either read from file (above) or read from screen here
  !PRINT *,'enter total pop of red snapper on each rig in numbers'  ! number of age-1 individual snapper in population
  !READ *,totpop(1)
- totpop(1)=800
+ totpop(1)=1000
  
  !PRINT *,'enter 0 for no pinfish and 1 for pinfish'  ! 1 means the second species is grunts
  !READ *,ipinfish
@@ -701,7 +701,7 @@ end do
  IF(ipinfish.eq.1)then
   !PRINT *,'enter total pop of pinfish on each rig in numbers'
   !READ *,totpop(2)
-  totpop(2)=800
+  totpop(2)=5000
  endif
 !
  !PRINT *,'enter 0 for no Atl croaker and 1 for Atl croaker'  ! 1 means the third species is grouper
@@ -711,7 +711,7 @@ end do
  IF(icroaker.eq.1)then
   !PRINT *,'enter total pop of Atl croaker on each rig in numbers'
   !READ *,totpop(3)
-  totpop(3)=800
+  totpop(3)=2000
  endif
 !
 !!*NEW - entered setup information to include a 4th IBM species ... bluefish
@@ -737,7 +737,7 @@ end do
 !
 !PRINT *, 'Enter the total pop of Greater Amberjack on each rig in numbers'
 !READ *, totpop(6)
-totpop(6)=800
+totpop(6)=600
 
 call parameters   ! assign values to many model parameters
 call setupgrid        ! set up the grid and environmental variables
@@ -1046,14 +1046,14 @@ ksat(1,5,6)=115.0;   ksat(1,5,7)=115.0;   ksat(1,5,8)=115.0;   ksat(1,5,9)=115.0
 
 ! species 2
 ksat(2,1,1)=150.0;   ksat(2,1,2)=150.0;  ksat(2,1,3)=150.0;   ksat(2,1,4)=150.0;  ksat(2,1,5)=150.0    !
-ksat(2,2,1)=165.0;   ksat(2,2,2)=165.0;  ksat(2,2,3)=165.0;   ksat(2,2,4)=165.0;  ksat(2,2,5)=165.0    !
-ksat(2,3,1)=165.0;   ksat(2,3,2)=165.0;  ksat(2,3,3)=165.0;   ksat(2,3,4)=165.0;  ksat(2,3,5)=165.0    !
+ksat(2,2,1)=165.0;   ksat(2,2,2)=165.0;  ksat(2,2,3)=165.0;   ksat(2,2,4)=165.0;  ksat(2,2,5)=160.0    !
+ksat(2,3,1)=165.0;   ksat(2,3,2)=165.0;  ksat(2,3,3)=165.0;   ksat(2,3,4)=165.0;  ksat(2,3,5)=160.0    !
 ksat(2,4,1)=5.0;     ksat(2,4,2)=5.0;    ksat(2,4,3)=5.0;     ksat(2,4,4)=5.0;    ksat(2,4,5)=5.0      !
 ksat(2,5,1)=5.0;     ksat(2,5,2)=5.0;    ksat(2,5,3)=5.0;     ksat(2,5,4)=5.0;    ksat(2,5,5)=5.0      !
 !
 ksat(2,1,6)=150.0;   ksat(2,1,7)=150.0;  ksat(2,1,8)=150.0;   ksat(2,1,9)=150.0;  ksat(2,1,10)=150.0    !
-ksat(2,2,6)=165.0;   ksat(2,2,7)=165.0;  ksat(2,2,8)=165.0;   ksat(2,2,9)=165.0;  ksat(2,2,10)=165.0    !
-ksat(2,3,6)=165.0;   ksat(2,3,7)=165.0;  ksat(2,3,8)=165.0;   ksat(2,3,9)=165.0;  ksat(2,3,10)=165.0    !
+ksat(2,2,6)=160.0;   ksat(2,2,7)=160.0;  ksat(2,2,8)=160.0;   ksat(2,2,9)=160.0;  ksat(2,2,10)=160.0    !
+ksat(2,3,6)=160.0;   ksat(2,3,7)=160.0;  ksat(2,3,8)=160.0;   ksat(2,3,9)=160.0;  ksat(2,3,10)=160.0    !
 ksat(2,4,6)=5.0;     ksat(2,4,7)=5.0;    ksat(2,4,8)=5.0;     ksat(2,4,9)=5.0;    ksat(2,4,10)=5.0      !
 ksat(2,5,6)=5.0;     ksat(2,5,7)=5.0;    ksat(2,5,8)=5.0;     ksat(2,5,9)=5.0;    ksat(2,5,10)=5.0      !
 
@@ -1305,12 +1305,12 @@ REAL*8 ran1
                xcolnearrig(ifish)=rigcol(k)  ! column number of the rig cell
                xrownearrig(ifish)=rigrow(k)   ! row number of the rig cell
                olddistrig=distrig  ! replace shortest so far with the new shortest vaale
-               else
-               distrig = distrig*(ran1(idum)*1000)  ! if the density is higher than it should be at that sight, then it gets a random distance multiplier  KM 5/30        
-               xdistnearrig(ifish)=distrig  ! actual distance of shortest distance.
-               xcolnearrig(ifish)=rigcol(k)  ! column number of the rig cell
-               xrownearrig(ifish)=rigrow(k)   ! row number of the rig cell
-               olddistrig=distrig ! density multiplier must apply here too 
+!               else
+!               distrig = distrig*(ran1(idum)*10000)  ! if the density is higher than it should be at that site, then it gets a random distance multiplier  KM 5/30        
+!               xdistnearrig(ifish)=distrig  ! actual distance of shortest distance.
+!               xcolnearrig(ifish)=rigcol(k)  ! column number of the rig cell
+!               xrownearrig(ifish)=rigrow(k)   ! row number of the rig cell
+!               olddistrig=distrig ! density multiplier must apply here too 
                END IF ! dist
            ELSE 
            IF(distrig.lt.olddistrig)then ! see if shortest so far in search through the list of rig cells
@@ -1353,12 +1353,12 @@ USE allvar
                xcolnearpyr(ifish)=pyrcol(k)  ! column number of the rig cell
                xrownearpyr(ifish)=pyrrow(k)   ! row number of the rig cell
                olddistpyr=distpyr  ! replace shortest so far with the new shortest vaale
-               else
-               distpyr = distpyr*(ran1(idum)*1000)  ! if over density then it gets a random distance multiplier. KM 5/30
-               xdistnearpyr(ifish)=distpyr ! actual distance of shortest distance.
-               xcolnearpyr(ifish)=pyrcol(k)  ! column number of the rig cell
-               xrownearpyr(ifish)=pyrrow(k)   ! row number of the rig cell
-               olddistpyr=distpyr  ! replace shortest so far with the new shortest vaale
+!               else
+!               distpyr = distpyr*(ran1(idum)*10000)  ! if over density then it gets a random distance multiplier. KM 5/30
+!               xdistnearpyr(ifish)=distpyr ! actual distance of shortest distance.
+!               xcolnearpyr(ifish)=pyrcol(k)  ! column number of the rig cell
+!               xrownearpyr(ifish)=pyrrow(k)   ! row number of the rig cell
+!               olddistpyr=distpyr  ! replace shortest so far with the new shortest vaale
                END IF
            ELSE 
                IF(distpyr.lt.olddistpyr)then ! see if shortest so far in search through the list of rig cells
@@ -1407,12 +1407,12 @@ USE allvar
                xcolnearnat(ifish)=natcol(k)  ! column number of the rig cell
                xrownearnat(ifish)=natrow(k)   ! row number of the rig cell
                olddistnat=distnat  ! replace shortest so far with the new shortest vaale
-           else
-               distnat = distnat*(ran1(idum)*1000)
-               xdistnearnat(ifish)=distnat  ! actual distance of shortest distance
-               xcolnearnat(ifish)=natcol(k)  ! column number of the rig cell
-               xrownearnat(ifish)=natrow(k)   ! row number of the rig cell
-               olddistnat=distnat  ! replace shortest so far with the new shortest vaale
+!           else
+!               distnat = distnat*(ran1(idum)*10000)
+!               xdistnearnat(ifish)=distnat  ! actual distance of shortest distance
+!               xcolnearnat(ifish)=natcol(k)  ! column number of the rig cell
+!               xrownearnat(ifish)=natrow(k)   ! row number of the rig cell
+!               olddistnat=distnat  ! replace shortest so far with the new shortest vaale
            ENDIF ! dist
            ELSE
                IF(distnat.lt.olddistnat)then ! see if shortest so far in search through the list of rig cell
